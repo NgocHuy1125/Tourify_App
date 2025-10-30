@@ -20,9 +20,6 @@ import 'package:tourify_app/features/tour/model/tour_repository_impl.dart';
 import 'package:tourify_app/features/cart/model/cart_repository.dart';
 import 'package:tourify_app/features/cart/model/cart_repository_impl.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
-import 'package:tourify_app/features/promo_shop/model/promo_repository.dart';
-import 'package:tourify_app/features/promo_shop/presenter/promo_cart_presenter.dart';
-import 'package:tourify_app/features/promo_shop/presenter/promo_home_presenter.dart';
 import 'package:tourify_app/features/wishlist/model/wishlist_repository.dart';
 import 'package:tourify_app/features/wishlist/model/wishlist_repository_impl.dart';
 import 'package:tourify_app/features/wishlist/presenter/wishlist_presenter.dart';
@@ -50,7 +47,6 @@ Future<void> main() async {
         Provider<AccountRepository>(create: (_) => AccountRepositoryImpl()),
         Provider<CartRepository>(create: (_) => CartRepositoryImpl()),
         Provider<BookingRepository>(create: (_) => BookingRepositoryImpl()),
-        Provider<PromoRepository>(create: (_) => MockPromoRepository()),
 
         // Notifiers & Presenters
         ChangeNotifierProvider.value(value: authNotifier),
@@ -79,12 +75,6 @@ Future<void> main() async {
         ),
         ChangeNotifierProvider(
           create: (context) => CartPresenter(context.read<CartRepository>()),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => PromoHomePresenter(context.read<PromoRepository>()),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => PromoCartPresenter(context.read<PromoRepository>()),
         ),
       ],
       child: const MyApp(),
