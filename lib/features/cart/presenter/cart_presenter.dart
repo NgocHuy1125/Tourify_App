@@ -65,14 +65,13 @@ class CartPresenter with ChangeNotifier {
 
   int get selectedCount => _entries.where((e) => e.selected).length;
 
-  int get selectedQuantity =>
-      _entries
-          .where((e) => e.selected)
-          .fold<int>(
-            0,
-            (sum, entry) =>
-                sum + (entry.item.quantity > 0 ? entry.item.quantity : 1),
-          );
+  int get selectedQuantity => _entries
+      .where((e) => e.selected)
+      .fold<int>(
+        0,
+        (sum, entry) =>
+            sum + (entry.item.quantity > 0 ? entry.item.quantity : 1),
+      );
 
   int get totalItems =>
       _entries.fold(0, (sum, entry) => sum + entry.item.quantity);
@@ -93,6 +92,11 @@ class CartPresenter with ChangeNotifier {
             (passengers > 0 ? passengers : item.quantity) * basePrice;
         return sum + fallbackTotal;
       });
+
+  List<CartItem> get selectedItems => _entries
+      .where((e) => e.selected)
+      .map((entry) => entry.item)
+      .toList(growable: false);
 
   double get effectiveTotal {
     final total = selectedTotal;

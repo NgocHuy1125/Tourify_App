@@ -40,7 +40,6 @@ class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
               children: [
                 IconButton(
                   onPressed: () {
-                    presenter.loadCart(showLoading: false);
                     Navigator.push(
                       context,
                       MaterialPageRoute(

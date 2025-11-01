@@ -24,6 +24,16 @@ class WishlistPresenter with ChangeNotifier {
   bool get isTrendingLoading => _isTrendingLoading;
   bool _isOnboarding = false;
   bool get isOnboarding => _isOnboarding;
+  final Set<String> _compareSelection = <String>{};
+
+  Set<String> get compareSelection => _compareSelection;
+  int get compareCount => _compareSelection.length;
+  bool get hasCompareSelection => _compareSelection.isNotEmpty;
+  bool get canCompare => _compareSelection.length == 2;
+  bool get isCompareLimitReached => _compareSelection.length >= 2;
+
+  bool isSelectedForCompare(String tourId) =>
+      _compareSelection.contains(tourId);
 
   Future<void> loadWishlist() async {
     _state = WishlistState.loading;
@@ -32,6 +42,9 @@ class WishlistPresenter with ChangeNotifier {
     notifyListeners();
     try {
       _items = await _repository.fetchWishlist();
+      _compareSelection.removeWhere(
+        (tourId) => !_items.any((item) => item.tour.id == tourId),
+      );
       if (_items.isEmpty) {
         _state = WishlistState.empty;
       } else {
@@ -64,6 +77,9 @@ class WishlistPresenter with ChangeNotifier {
   Future<void> removeItem(String wishlistItemId) async {
     final original = List<WishlistItem>.from(_items);
     _items.removeWhere((item) => item.id == wishlistItemId);
+    _compareSelection.removeWhere(
+      (tourId) => !_items.any((item) => item.tour.id == tourId),
+    );
     if (_items.isEmpty) {
       if (_isOnboarding) {
         _state = WishlistState.empty;
@@ -84,8 +100,7 @@ class WishlistPresenter with ChangeNotifier {
   }
 
   Future<void> toggleFavouriteByTour(TourSummary tour) async {
-    final existing =
-        _items.where((item) => item.tour.id == tour.id).toList();
+    final existing = _items.where((item) => item.tour.id == tour.id).toList();
     if (existing.isNotEmpty) {
       await removeItem(existing.first.id);
     } else {
@@ -111,6 +126,41 @@ class WishlistPresenter with ChangeNotifier {
     } else {
       notifyListeners();
     }
+  }
+
+  bool toggleCompareSelection(String tourId) {
+    if (_compareSelection.contains(tourId)) {
+      _compareSelection.remove(tourId);
+      notifyListeners();
+      return true;
+    }
+    if (_compareSelection.length >= 2) {
+      return false;
+    }
+    _compareSelection.add(tourId);
+    notifyListeners();
+    return true;
+  }
+
+  void clearCompareSelection() {
+    if (_compareSelection.isEmpty) return;
+    _compareSelection.clear();
+    notifyListeners();
+  }
+
+  Future<List<TourDetail>> compareSelectedTours() async {
+    if (_compareSelection.isEmpty) return const [];
+    final ids = _compareSelection.take(2).toList();
+    try {
+      return await _repository.compareTours(ids);
+    } catch (e) {
+      _errorMessage = e.toString();
+      rethrow;
+    }
+  }
+
+  Future<void> refreshTrendingTours({int limit = 6}) async {
+    await _loadTrendingTours(limit: limit);
   }
 
   Future<void> _loadTrendingTours({int limit = 6}) async {

@@ -25,6 +25,10 @@ class TourSummary {
   final String? mediaCover;
   final List<String> tags;
   final int? bookingsCount;
+  final String type;
+  final int? childAgeLimit;
+  final bool requiresPassport;
+  final bool requiresVisa;
 
   TourSummary({
     required this.id,
@@ -37,6 +41,10 @@ class TourSummary {
     this.mediaCover,
     this.tags = const [],
     this.bookingsCount,
+    this.type = 'domestic',
+    this.childAgeLimit,
+    this.requiresPassport = false,
+    this.requiresVisa = false,
   });
 
   factory TourSummary.fromJson(Map<String, dynamic> json) {
@@ -98,6 +106,13 @@ class TourSummary {
           map['bookings_count'] != null
               ? parseInt(map['bookings_count'])
               : null,
+      type: (map['type'] ?? 'domestic').toString(),
+      childAgeLimit:
+          map['child_age_limit'] == null
+              ? null
+              : parseInt(map['child_age_limit']),
+      requiresPassport: map['requires_passport'] == true,
+      requiresVisa: map['requires_visa'] == true,
     );
   }
 }
@@ -201,6 +216,11 @@ class TourDetail {
   final List<TourSchedule> schedules;
   final List<ReviewItem> reviews;
   final List<TourPackage> packages;
+  final String type;
+  final int? childAgeLimit;
+  final bool requiresPassport;
+  final bool requiresVisa;
+  final List<TourCancellationPolicy> cancellationPolicies;
 
   TourDetail({
     required this.id,
@@ -219,6 +239,11 @@ class TourDetail {
     this.schedules = const [],
     this.reviews = const [],
     this.packages = const [],
+    this.type = 'domestic',
+    this.childAgeLimit,
+    this.requiresPassport = false,
+    this.requiresVisa = false,
+    this.cancellationPolicies = const [],
   });
 
   factory TourDetail.fromJson(Map<String, dynamic> json) {
@@ -280,6 +305,23 @@ class TourDetail {
     final reviewsSource =
         json['reviews_count'] ?? json['rating_count'] ?? json['review_count'];
     final bookingsSource = json['bookings_count'] ?? json['bookings'];
+    final type = (json['type'] ?? 'domestic').toString();
+    final childAgeLimit =
+        (json['child_age_limit'] is num)
+            ? (json['child_age_limit'] as num).toInt()
+            : int.tryParse(json['child_age_limit']?.toString() ?? '');
+    final requiresPassport = json['requires_passport'] == true;
+    final requiresVisa = json['requires_visa'] == true;
+    final cancellationPolicies =
+        (json['cancellation_policies'] as List?)
+                ?.whereType<Map>()
+                .map(
+                  (e) => TourCancellationPolicy.fromJson(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList() ??
+            const [];
 
     return TourDetail(
       id: json['id']?.toString() ?? '',
@@ -331,6 +373,47 @@ class TourDetail {
               )
               .toList() ??
           const [],
+      type: type.isNotEmpty ? type : 'domestic',
+      childAgeLimit: childAgeLimit,
+      requiresPassport: requiresPassport,
+      requiresVisa: requiresVisa,
+      cancellationPolicies: cancellationPolicies,
+    );
+  }
+}
+
+class TourCancellationPolicy {
+  final int? daysBefore;
+  final double refundRate;
+  final String description;
+
+  const TourCancellationPolicy({
+    required this.daysBefore,
+    required this.refundRate,
+    required this.description,
+  });
+
+  factory TourCancellationPolicy.fromJson(Map<String, dynamic> json) {
+    int? parseInt(dynamic value) {
+      if (value is num) return value.toInt();
+      return int.tryParse(value?.toString() ?? '');
+    }
+
+    double parseDouble(dynamic value) {
+      if (value is num) return value.toDouble();
+      final str = value?.toString() ?? '';
+      if (str.endsWith('%')) {
+        final percent = str.substring(0, str.length - 1);
+        final parsed = double.tryParse(percent);
+        if (parsed != null) return parsed / 100;
+      }
+      return double.tryParse(str) ?? 0;
+    }
+
+    return TourCancellationPolicy(
+      daysBefore: parseInt(json['days_before']),
+      refundRate: parseDouble(json['refund_rate']),
+      description: json['description']?.toString() ?? '',
     );
   }
 }

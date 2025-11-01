@@ -38,10 +38,13 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
   bool _isSubmitting = false;
   String _selectedMethod = _PaymentMethod.sepay.id;
 
+  bool get _requiresDocument =>
+      widget.detail.requiresPassport || widget.detail.requiresVisa;
+  int? get _childAgeLimit => widget.detail.childAgeLimit;
+
   double get _adultPrice => widget.package.adultPrice;
   double get _childPrice =>
       widget.package.childPrice ?? widget.package.adultPrice;
-
   double get _totalAmount =>
       (widget.adults * _adultPrice) + (widget.children * _childPrice);
 
@@ -50,9 +53,13 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
     super.initState();
     _passengers = [
       for (var index = 0; index < widget.adults; index++)
-        _PassengerFormData(type: 'adult'),
+        _PassengerFormData(type: 'adult', requiresDocument: _requiresDocument),
       for (var index = 0; index < widget.children; index++)
-        _PassengerFormData(type: 'child'),
+        _PassengerFormData(
+          type: 'child',
+          requiresDocument: _requiresDocument,
+          childAgeLimit: _childAgeLimit,
+        ),
     ];
   }
 
@@ -83,18 +90,15 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       return;
     }
 
-    final incompletePassenger = _passengers.indexWhere(
-      (passenger) => !passenger.isValid,
-    );
-    if (incompletePassenger != -1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Hành khách số ${incompletePassenger + 1} chưa đầy đủ thông tin.',
-          ),
-        ),
-      );
-      return;
+    final today = DateTime.now();
+    for (var index = 0; index < _passengers.length; index++) {
+      final message = _passengers[index].validate(today);
+      if (message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hành khách số ${index + 1}: $message')),
+        );
+        return;
+      }
     }
 
     setState(() => _isSubmitting = true);
@@ -202,7 +206,7 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               totalFormatted: currency.format(_totalAmount),
             ),
             const SizedBox(height: 24),
-            _SectionTitle(title: 'Thông tin liên hệ'),
+            const _SectionTitle(title: 'Thông tin liên hệ'),
             const SizedBox(height: 12),
             _ContactField(
               controller: _contactName,
@@ -229,11 +233,11 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               validator: _requiredValidator,
             ),
             const SizedBox(height: 24),
-            _SectionTitle(title: 'Danh sách hành khách'),
+            const _SectionTitle(title: 'Danh sách hành khách'),
             const SizedBox(height: 12),
             ..._buildPassengerCards(),
             const SizedBox(height: 24),
-            _SectionTitle(title: 'Ghi chú cho nhà tổ chức'),
+            const _SectionTitle(title: 'Ghi chú cho nhà tổ chức'),
             const SizedBox(height: 12),
             _ContactField(
               controller: _notes,
@@ -242,7 +246,7 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               maxLines: 3,
             ),
             const SizedBox(height: 24),
-            _SectionTitle(title: 'Phương thức thanh toán'),
+            const _SectionTitle(title: 'Phương thức thanh toán'),
             const SizedBox(height: 12),
             ..._PaymentMethod.values.map(
               (method) => Card(
@@ -404,8 +408,22 @@ class _BookingSummaryCard extends StatelessWidget {
       if (schedule == null) return 'Chưa chọn lịch cố định';
       final start = dateFormat.format(schedule!.startDate);
       final end = dateFormat.format(schedule!.endDate);
-      return '$start → $end';
+      return '$start - $end';
     }
+
+    final typeLabel =
+        detail.type == 'international' ? 'Tour quốc tế' : 'Tour nội địa';
+    final docLabel =
+        detail.requiresPassport || detail.requiresVisa
+            ? [
+              if (detail.requiresPassport) 'Cần hộ chiếu',
+              if (detail.requiresVisa) 'Cần visa',
+            ].join(' · ')
+            : 'Không yêu cầu giấy tờ đặc biệt';
+    final childLabel =
+        detail.childAgeLimit != null
+            ? 'Trẻ em ≤ ${detail.childAgeLimit} tuổi'
+            : 'Không giới hạn độ tuổi trẻ em';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -440,7 +458,22 @@ class _BookingSummaryCard extends StatelessWidget {
           ),
           _SummaryRow(
             label: 'Số khách',
-            value: '$adults người lớn · $children trẻ em',
+            value: '$adults người lớn & $children trẻ em',
+            valueColor: Colors.white70,
+          ),
+          _SummaryRow(
+            label: 'Loại tour',
+            value: typeLabel,
+            valueColor: Colors.white70,
+          ),
+          _SummaryRow(
+            label: 'Quy định giấy tờ',
+            value: docLabel,
+            valueColor: Colors.white70,
+          ),
+          _SummaryRow(
+            label: 'Độ tuổi trẻ em',
+            value: childLabel,
             valueColor: Colors.white70,
           ),
           const Divider(color: Colors.white24, height: 24),
@@ -476,7 +509,7 @@ class _SummaryRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 120,
             child: Text(label, style: const TextStyle(color: Colors.white70)),
           ),
           Expanded(
@@ -583,6 +616,9 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
 
   @override
   Widget build(BuildContext context) {
+    final requiresDocument = widget.data.requiresDocument;
+    final childLimit = widget.data.childAgeLimit;
+
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -635,17 +671,20 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
             ),
             const SizedBox(height: 12),
             InkWell(
-              onTap: _pickDob,
+              onTap: widget.data.type == 'child' ? _pickDob : _pickDob,
               borderRadius: BorderRadius.circular(12),
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Ngày sinh',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText:
+                      widget.data.type == 'child' ? 'Ngày sinh *' : 'Ngày sinh',
+                  border: const OutlineInputBorder(),
                 ),
                 child: Text(
                   widget.data.dateOfBirth != null
                       ? _dateFormat.format(widget.data.dateOfBirth!)
-                      : 'Chưa chọn',
+                      : widget.data.type == 'child'
+                      ? 'Chưa chọn'
+                      : 'Không bắt buộc',
                   style: TextStyle(
                     color:
                         widget.data.dateOfBirth != null
@@ -655,12 +694,26 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
                 ),
               ),
             ),
+            if (widget.data.type == 'child' && childLimit != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Yêu cầu: trẻ em không vượt quá $childLimit tuổi.',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               controller: widget.data.documentController,
-              decoration: const InputDecoration(
-                labelText: 'Số giấy tờ (CMND/CCCD/Hộ chiếu)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText:
+                    requiresDocument
+                        ? 'Số giấy tờ (CMND/CCCD/Hộ chiếu) *'
+                        : 'Số giấy tờ (CMND/CCCD/Hộ chiếu)',
+                helperText:
+                    requiresDocument
+                        ? 'Bắt buộc vì tour yêu cầu hộ chiếu hoặc visa.'
+                        : 'Có thể bỏ trống nếu không cần cung cấp.',
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -672,14 +725,42 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
 
 class _PassengerFormData {
   final String type;
+  final bool requiresDocument;
+  final int? childAgeLimit;
   final TextEditingController nameController = TextEditingController();
   final TextEditingController documentController = TextEditingController();
   String? gender;
   DateTime? dateOfBirth;
 
-  _PassengerFormData({required this.type});
+  _PassengerFormData({
+    required this.type,
+    required this.requiresDocument,
+    this.childAgeLimit,
+  });
 
-  bool get isValid => nameController.text.trim().isNotEmpty;
+  String? validate(DateTime today) {
+    if (nameController.text.trim().isEmpty) {
+      return 'Vui lòng nhập họ tên.';
+    }
+
+    if (type == 'child') {
+      if (dateOfBirth == null) {
+        return 'Cần chọn ngày sinh cho trẻ em.';
+      }
+      if (childAgeLimit != null) {
+        final age = _calculateAge(dateOfBirth!, today);
+        if (age > childAgeLimit!) {
+          return 'Tuổi vượt quá giới hạn ${childAgeLimit!} tuổi.';
+        }
+      }
+    }
+
+    if (requiresDocument && documentController.text.trim().isEmpty) {
+      return 'Cần nhập số giấy tờ cho tour này.';
+    }
+
+    return null;
+  }
 
   BookingPassenger toPassenger() {
     return BookingPassenger(
@@ -697,6 +778,15 @@ class _PassengerFormData {
   void dispose() {
     nameController.dispose();
     documentController.dispose();
+  }
+
+  int _calculateAge(DateTime birthDate, DateTime today) {
+    var age = today.year - birthDate.year;
+    final hasHadBirthday =
+        today.month > birthDate.month ||
+        (today.month == birthDate.month && today.day >= birthDate.day);
+    if (!hasHadBirthday) age--;
+    return age;
   }
 }
 

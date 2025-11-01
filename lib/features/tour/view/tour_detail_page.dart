@@ -339,6 +339,10 @@ class _TourDetailViewState extends State<_TourDetailView> {
       mediaCover: detail.media.isNotEmpty ? detail.media.first : null,
       tags: detail.tags,
       bookingsCount: detail.bookingsCount,
+      type: detail.type,
+      childAgeLimit: detail.childAgeLimit,
+      requiresPassport: detail.requiresPassport,
+      requiresVisa: detail.requiresVisa,
     );
   }
 }

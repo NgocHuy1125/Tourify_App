@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:tourify_app/features/cart/model/cart_model.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
 import 'package:tourify_app/features/cart/view/widgets/cart_empty_view.dart';
 
@@ -12,6 +13,12 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  late final NumberFormat _currency = NumberFormat.currency(
+    locale: 'vi_VN',
+    symbol: '₫',
+    decimalDigits: 0,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -26,146 +33,190 @@ class _CartScreenState extends State<CartScreen> {
     final hasItems = presenter.entries.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.6,
         iconTheme: const IconThemeData(color: Colors.black87),
         title: const Text(
-          'Gi? h�ng',
+          'Giỏ hàng',
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700),
         ),
         centerTitle: false,
-        actions: hasItems
-            ? [
-                TextButton(
-                  onPressed: () =>
-                      presenter.toggleSelectAll(!presenter.isAllSelected),
-                  child: Text(
-                    presenter.isAllSelected ? 'B? ch?n' : 'Ch?n t?t c?',
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
+        actions:
+            hasItems
+                ? [
+                  TextButton(
+                    onPressed:
+                        () =>
+                            presenter.toggleSelectAll(!presenter.isAllSelected),
+                    child: Text(
+                      presenter.isAllSelected ? 'Bỏ chọn' : 'Chọn tất cả',
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ]
-            : null,
+                ]
+                : null,
       ),
-      body: _CartBody(presenter: presenter),
-      bottomNavigationBar:
-          hasItems ? _CartBottomBar(presenter: presenter) : null,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: _CartBody(presenter: presenter, currency: _currency),
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child:
+                  hasItems
+                      ? _CartSummaryBar(
+                        presenter: presenter,
+                        currency: _currency,
+                      )
+                      : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _CartBody extends StatelessWidget {
   final CartPresenter presenter;
-  const _CartBody({required this.presenter});
+  final NumberFormat currency;
+
+  const _CartBody({required this.presenter, required this.currency});
+
+  Future<void> _refresh() async {
+    await presenter.loadCart(showLoading: false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    Widget child;
+
     if (presenter.state == CartState.loading && presenter.entries.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (presenter.state == CartState.error && presenter.entries.isEmpty) {
-      return _ErrorView(message: presenter.errorMessage);
-    }
-
-    if (presenter.entries.isEmpty) {
-      return const CartEmptyView();
-    }
-
-    final entries = presenter.entries;
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: _SelectAllBanner(presenter: presenter),
+      child = const Center(child: CircularProgressIndicator());
+    } else if (presenter.state == CartState.error &&
+        presenter.entries.isEmpty) {
+      child = _CartErrorView(
+        message: presenter.errorMessage,
+        onRetry: _refresh,
+      );
+    } else if (presenter.entries.isEmpty) {
+      child = RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+          children: const [CartEmptyView()],
         ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => presenter.loadCart(showLoading: false),
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-              itemCount: entries.length + 1,
-              itemBuilder: (context, index) {
-                if (index == entries.length) {
-                  return const _UpsellPlaceholder();
-                }
-                final entry = entries[index];
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: index == entries.length - 1 ? 24 : 12,
-                  ),
-                  child: _CartItemTile(
-                    key: ValueKey(entry.item.id),
-                    entry: entry,
-                    onSelect: (value) =>
-                        presenter.toggleItem(entry.item.id, value),
-                    onIncrease: () => presenter.increaseQuantity(entry.item),
-                    onDecrease: () => presenter.decreaseQuantity(entry.item),
-                    onRemove: () => presenter.removeItem(entry.item.id),
-                  ),
-                );
-              },
-            ),
-          ),
+      );
+    } else {
+      child = RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+          itemCount: presenter.entries.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return _SelectAllTile(
+                isAllSelected: presenter.isAllSelected,
+                selected: presenter.selectedCount,
+                total: presenter.entries.length,
+                onChanged: (value) => presenter.toggleSelectAll(value ?? false),
+              );
+            }
+            final entry = presenter.entries[index - 1];
+            return Padding(
+              padding: EdgeInsets.only(top: index == 1 ? 18 : 22),
+              child: _CartItemCard(
+                entry: entry,
+                currency: currency,
+                onSelect:
+                    (value) =>
+                        presenter.toggleItem(entry.item.id, value ?? false),
+                onIncrease: () => presenter.increaseQuantity(entry.item),
+                onDecrease: () => presenter.decreaseQuantity(entry.item),
+                onRemove: () => presenter.removeItem(entry.item.id),
+              ),
+            );
+          },
         ),
-      ],
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: child,
     );
   }
 }
 
-class _SelectAllBanner extends StatelessWidget {
-  final CartPresenter presenter;
-  const _SelectAllBanner({required this.presenter});
+class _SelectAllTile extends StatelessWidget {
+  final bool isAllSelected;
+  final int selected;
+  final int total;
+  final ValueChanged<bool?> onChanged;
+
+  const _SelectAllTile({
+    required this.isAllSelected,
+    required this.selected,
+    required this.total,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Checkbox(
-            value: presenter.isAllSelected,
-            onChanged: (value) => presenter.toggleSelectAll(value ?? false),
-          ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              'Ch?n t?t c? don v?',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: CheckboxListTile(
+        value: isAllSelected,
+        onChanged: onChanged,
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        title: Text(
+          'Chọn tất cả ($selected/$total)',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
       ),
     );
   }
 }
 
-class _CartItemTile extends StatelessWidget {
+class _CartItemCard extends StatelessWidget {
   final CartEntry entry;
-  final ValueChanged<bool> onSelect;
+  final NumberFormat currency;
+  final ValueChanged<bool?> onSelect;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onRemove;
 
-  const _CartItemTile({
-    super.key,
+  const _CartItemCard({
     required this.entry,
+    required this.currency,
     required this.onSelect,
     required this.onIncrease,
     required this.onDecrease,
@@ -175,251 +226,258 @@ class _CartItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = entry.item;
-    final currency = NumberFormat.currency(
-      locale: 'vi_VN',
-      symbol: '?',
-      decimalDigits: 0,
-    );
     final tour = item.tour;
-    final passengers = (item.adults + item.children) > 0
-        ? (item.adults + item.children)
-        : item.quantity;
-    final baseTotal = item.price != 0
-        ? item.price
-        : (item.adultSubtotal + item.childSubtotal);
-    final fallbackTotal = (tour?.priceFrom ?? 0) * passengers;
-    final totalPrice = baseTotal != 0 ? baseTotal : fallbackTotal;
+    final isSelected = entry.selected;
 
-    String buildPaxLabel() {
-      final adults = item.adults;
-      final children = item.children;
-      if (adults == 0 && children == 0) {
-        return item.quantity > 1
-            ? '${item.quantity} v�'
-            : '1 v�';
-      }
-      final parts = <String>[];
-      if (adults > 0) parts.add('$adults ngu?i l?n');
-      if (children > 0) parts.add('$children tr? em');
-      return parts.join(' � ');
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors:
+              isSelected
+                  ? const [Color(0xFFFFE8D6), Color(0xFFFFFFFF)]
+                  : const [Color(0xFFFDFDFD), Color(0xFFFFFFFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: isSelected ? const Color(0xFFFF8A3D) : Colors.transparent,
+          width: 1.1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(
+              0xFFFF8A3D,
+            ).withOpacity(isSelected ? 0.22 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: entry.selected,
-                onChanged: (value) => onSelect(value ?? false),
-              ),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  item.imageUrl.isNotEmpty
-                      ? item.imageUrl
-                      : 'https://via.placeholder.com/120x90?text=Tour',
-                  width: 96,
-                  height: 78,
-                  fit: BoxFit.cover,
-                  errorBuilder:
-                      (_, __, ___) => Container(
-                        width: 96,
-                        height: 78,
-                        color: Colors.grey.shade200,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.image_not_supported),
-                      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: entry.selected,
+                  onChanged: onSelect,
+                  activeColor: const Color(0xFFFF5B00),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title.isNotEmpty
-                          ? item.title
-                          : (tour?.title ?? 'Tour'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (tour != null && tour.destination.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          tour.destination,
-                          style: const TextStyle(color: Colors.black54),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.network(
+                    item.imageUrl.isNotEmpty
+                        ? item.imageUrl
+                        : 'https://via.placeholder.com/140x120?text=Tour',
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (_, __, ___) => Container(
+                          width: 120,
+                          height: 120,
+                          color: Colors.grey.shade200,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.image_not_supported),
+                        ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          height: 1.3,
                         ),
                       ),
-                    if (item.scheduleText.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Row(
+                      if (tour?.destination.isNotEmpty ?? false) ...[
+                        const SizedBox(height: 6),
+                        Row(
                           children: [
-                            const Icon(Icons.calendar_today, size: 14),
+                            const Icon(Icons.place_outlined, size: 16),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                item.scheduleText,
-                                style: const TextStyle(fontSize: 12),
+                                tour!.destination,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 12.5,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        buildPaxLabel(),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
+                      ],
+                      if (item.scheduleText.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, size: 15),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                item.scheduleText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                      if (item.packageName.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Gói dịch vụ: ${item.packageName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(14),
+              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Row(
+                if (tour != null)
+                  _InfoChip(
+                    icon: Icons.public,
+                    label:
+                        tour.type.toLowerCase() == 'international'
+                            ? 'Tour quốc tế'
+                            : 'Tour trong nước',
+                  ),
+                if (tour?.requiresPassport ?? false)
+                  const _InfoChip(
+                    icon: Icons.badge_outlined,
+                    label: 'Cần hộ chiếu',
+                  ),
+                if (tour?.requiresVisa ?? false)
+                  const _InfoChip(
+                    icon: Icons.assignment_ind_outlined,
+                    label: 'Cần visa',
+                  ),
+                if (item.note.isNotEmpty)
+                  _InfoChip(icon: Icons.info_outline, label: item.note),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _StepperButton(icon: Icons.remove, onPressed: onDecrease),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
+                    '${item.quantity}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                _StepperButton(icon: Icons.add, onPressed: onIncrease),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text(
-                      'G�i d?ch v?:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
+                      'Tạm tính',
+                      style: TextStyle(color: Colors.black54, fontSize: 12.5),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currency.format(_resolveSubtotal(item)),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
                         color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        item.packageName.isNotEmpty
-                            ? item.packageName
-                            : item.quantityLabel,
-                        style: const TextStyle(color: Colors.black87),
-                      ),
-                    ),
                   ],
                 ),
-                if (item.note.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      item.note,
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'T?m t�nh',
-                    style: TextStyle(color: Colors.black54, fontSize: 12),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    currency.format(totalPrice),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFFF5B00),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              _QuantityControl(
-                onDecrease: onDecrease,
-                onIncrease: onIncrease,
-                quantity: item.quantity,
-              ),
-              IconButton(
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
                 onPressed: onRemove,
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Xóa khỏi giỏ'),
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  double _resolveSubtotal(CartItem item) {
+    if (item.price != 0) return item.price;
+    final subtotal = item.adultSubtotal + item.childSubtotal;
+    if (subtotal != 0) return subtotal;
+    final unit = item.tour?.priceFrom ?? 0;
+    if (unit == 0) return 0;
+    final passengers = item.adults + item.children;
+    final quantity =
+        passengers > 0 ? passengers : (item.quantity == 0 ? 1 : item.quantity);
+    return unit * quantity;
+  }
 }
 
-class _QuantityControl extends StatelessWidget {
-  final int quantity;
-  final VoidCallback onIncrease;
-  final VoidCallback onDecrease;
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
 
-  const _QuantityControl({
-    required this.quantity,
-    required this.onIncrease,
-    required this.onDecrease,
-  });
+  const _InfoChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade300),
+        color: const Color(0xFFFFF1E7),
+        borderRadius: BorderRadius.circular(16),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            onPressed: onDecrease,
-            icon: const Icon(Icons.remove_circle_outline),
-            splashRadius: 18,
-          ),
+          Icon(icon, size: 14, color: const Color(0xFFFF5B00)),
+          const SizedBox(width: 5),
           Text(
-            quantity.toString(),
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          IconButton(
-            onPressed: onIncrease,
-            icon: const Icon(Icons.add_circle_outline),
-            splashRadius: 18,
+            label,
+            style: const TextStyle(
+              color: Color(0xFFFF5B00),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -427,134 +485,149 @@ class _QuantityControl extends StatelessWidget {
   }
 }
 
-class _CartBottomBar extends StatelessWidget {
-  final CartPresenter presenter;
-  const _CartBottomBar({required this.presenter});
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _StepperButton({required this.icon, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(
-      locale: 'vi_VN',
-      symbol: '?',
-      decimalDigits: 0,
+    return Container(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFFFFE0CC), Color(0xFFFFC9A4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x3DFF8A3D),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18, color: Colors.white),
+        splashRadius: 22,
+      ),
     );
-    final totalText = currency.format(presenter.effectiveTotal);
+  }
+}
 
-    final selectedUnits =
+class _CartSummaryBar extends StatelessWidget {
+  final CartPresenter presenter;
+  final NumberFormat currency;
+
+  const _CartSummaryBar({required this.presenter, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final totalText = currency.format(presenter.effectiveTotal);
+    final units =
         presenter.selectedQuantity == 0 && presenter.entries.isNotEmpty
             ? presenter.totalItems
             : presenter.selectedQuantity;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFFFEAD9), Color(0xFFFFFFFF)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: Color(0x33FF8A3D),
+            blurRadius: 22,
+            offset: Offset(0, -10),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'T?ng c?ng ($selectedUnits don v?)',
-                  style: const TextStyle(color: Colors.black54, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  totalText,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tổng cộng ($units đơn vị)',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12.5,
+                    ),
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    totalText,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: presenter.selectedItems.isEmpty ? null : () {},
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 36,
+                  vertical: 16,
                 ),
-              ],
-            ),
-          ),
-          ElevatedButton(
-            onPressed: presenter.selectedQuantity == 0 ? null : () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF5B00),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
+                backgroundColor: const Color(0xFFFF5B00),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                elevation: 0,
               ),
-              textStyle: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
+              child: const Text('Thanh toán'),
             ),
-            child: const Text('Thanh to�n'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UpsellPlaceholder extends StatelessWidget {
-  const _UpsellPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 24),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Thu?ng du?c d?t v?i',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'T�nh nang g?i � dang du?c ph�t tri?n. H�y ti?p t?c kh�m ph� Tourify nh�!',
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  final String message;
-  const _ErrorView({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          message.isNotEmpty ? message : '�� x?y ra l?i khi t?i gi? h�ng.',
-          textAlign: TextAlign.center,
+          ],
         ),
       ),
     );
   }
 }
 
+class _CartErrorView extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const _CartErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final display =
+        message.isNotEmpty ? message : 'Đã xảy ra lỗi khi tải giỏ hàng.';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(display, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => onRetry(),
+              child: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -123,11 +123,11 @@ class TourDetailHeader extends StatelessWidget {
                 '($ratingCount đánh giá)',
                 style: const TextStyle(color: Colors.black54),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
               const Icon(Icons.location_on_outlined, size: 18),
               const SizedBox(width: 4),
               Expanded(
@@ -137,7 +137,34 @@ class TourDetailHeader extends StatelessWidget {
                       : 'Đang cập nhật địa điểm',
                   style: const TextStyle(color: Colors.black87),
                 ),
+            ),
+          ],
+        ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _InfoChip(
+                icon: Icons.public,
+                label:
+                    detail.type == 'international'
+                        ? 'Tour quốc tế'
+                        : 'Tour nội địa',
               ),
+              if (detail.childAgeLimit != null)
+                _InfoChip(
+                  icon: Icons.cake_outlined,
+                  label: 'Trẻ em ≤ ${detail.childAgeLimit} tuổi',
+                ),
+              if (detail.requiresPassport || detail.requiresVisa)
+                _InfoChip(
+                  icon: Icons.badge_outlined,
+                  label: [
+                    if (detail.requiresPassport) 'Cần hộ chiếu',
+                    if (detail.requiresVisa) 'Cần visa',
+                  ].join(' • '),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -191,6 +218,40 @@ class TourDetailHeader extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFFF5B00)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
           ),
         ],
       ),

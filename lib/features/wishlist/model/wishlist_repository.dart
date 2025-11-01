@@ -6,4 +6,5 @@ abstract class WishlistRepository {
   Future<WishlistItem> addTour(String tourId);
   Future<void> removeWishlistItem(String wishlistItemId);
   Future<List<TourSummary>> fetchTrendingTours({int limit = 6});
+  Future<List<TourDetail>> compareTours(List<String> tourIds);
 }

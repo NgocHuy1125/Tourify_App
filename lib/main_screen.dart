@@ -21,9 +21,7 @@ class _MainScreenState extends State<MainScreen> {
     const HomeScreen(),
     const WishlistScreen(),
     const PromotionsListScreen(),
-    const Center(
-      child: Text('Lịch sử chuyến đi đang phát triển'),
-    ),
+    const Center(child: Text('Lịch sử chuyến đi đang phát triển')),
     const AccountScreen(),
   ];
 
@@ -45,9 +43,9 @@ class _MainScreenState extends State<MainScreen> {
       case 0:
         return const HomeHeaderSearch();
       case 1:
-        return AppBar(title: const Text('Yêu thích'));
+        return null;
       case 2:
-        return AppBar(title: const Text('Ưu đãi hấp dẫn'));
+        return null;
       case 3:
         return AppBar(title: const Text('Chuyến đi của tôi'));
       case 4:

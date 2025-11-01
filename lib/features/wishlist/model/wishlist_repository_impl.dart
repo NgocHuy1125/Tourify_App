@@ -63,6 +63,27 @@ class WishlistRepositoryImpl implements WishlistRepository {
         .toList();
   }
 
+  @override
+  Future<List<TourDetail>> compareTours(List<String> tourIds) async {
+    if (tourIds.isEmpty) return const [];
+    final payload = {'tour_ids': tourIds.take(2).toList()};
+    final res = await _http.post('/api/wishlist/compare', body: payload);
+
+    final decoded = _tryDecode(res.body);
+    if (res.statusCode != 200) {
+      final message =
+          _extractErrorMessage(decoded) ?? 'Không thể so sánh tour lúc này.';
+      throw Exception(message);
+    }
+
+    final tours = _extractList(decoded, preferredKeys: const ['tours', 'data']);
+    return tours
+        .whereType<Map>()
+        .map((map) => TourDetail.fromJson(Map<String, dynamic>.from(map)))
+        .where((detail) => detail.id.isNotEmpty)
+        .toList();
+  }
+
   List<dynamic> _extractList(
     dynamic payload, {
     List<String> preferredKeys = const [],
@@ -82,5 +103,45 @@ class WishlistRepositoryImpl implements WishlistRepository {
       }
     }
     return const [];
+  }
+
+  Map<String, dynamic> _tryDecode(String body) {
+    try {
+      final decoded = json.decode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is List) return {'data': decoded};
+    } catch (_) {}
+    return const {};
+  }
+
+  String? _extractErrorMessage(Map<String, dynamic> payload) {
+    if (payload.isEmpty) return null;
+    for (final key in ['message', 'error', 'detail']) {
+      final value = payload[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    final errors = payload['errors'];
+    if (errors is List && errors.isNotEmpty) {
+      final first = errors.first;
+      if (first is String && first.trim().isNotEmpty) return first.trim();
+      if (first is Map) {
+        for (final value in first.values) {
+          if (value is String && value.trim().isNotEmpty) {
+            return value.trim();
+          }
+        }
+      }
+    } else if (errors is Map) {
+      for (final value in errors.values) {
+        if (value is String && value.trim().isNotEmpty) return value.trim();
+        if (value is List && value.isNotEmpty) {
+          final first = value.first;
+          if (first is String && first.trim().isNotEmpty) return first.trim();
+        }
+      }
+    }
+    return null;
   }
 }
