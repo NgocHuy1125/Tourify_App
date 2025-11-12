@@ -29,4 +29,3 @@ class SearchHistoryStorage {
     await _storage.delete(key: _key);
   }
 }
-

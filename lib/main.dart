@@ -5,16 +5,22 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tourify_app/app.dart';
+import 'package:tourify_app/core/analytics/analytics_repository.dart';
 import 'package:tourify_app/core/notifiers/auth_notifier.dart';
 import 'package:tourify_app/features/account/model/account_repository.dart';
 import 'package:tourify_app/features/booking/model/booking_repository.dart';
 import 'package:tourify_app/features/booking/model/booking_repository_impl.dart';
+import 'package:tourify_app/features/booking/presenter/trips_presenter.dart';
 import 'package:tourify_app/features/account/presenter/account_presenter.dart';
 import 'package:tourify_app/features/auth/model/auth_repository.dart';
 import 'package:tourify_app/features/auth/model/auth_repository_impl.dart';
 import 'package:tourify_app/features/auth/presenter/auth_presenter.dart';
 import 'package:tourify_app/features/home/model/home_repository.dart';
+import 'package:tourify_app/features/home/model/recent_tour_storage.dart';
 import 'package:tourify_app/features/home/presenter/home_presenter.dart';
+import 'package:tourify_app/features/notifications/model/notification_repository.dart';
+import 'package:tourify_app/features/notifications/model/notification_repository_impl.dart';
+import 'package:tourify_app/features/notifications/presenter/notification_presenter.dart';
 import 'package:tourify_app/features/tour/model/tour_repository.dart';
 import 'package:tourify_app/features/tour/model/tour_repository_impl.dart';
 import 'package:tourify_app/features/cart/model/cart_repository.dart';
@@ -43,6 +49,11 @@ Future<void> main() async {
         Provider<AuthRepository>(create: (_) => AuthRepositoryImpl()),
         Provider<TourRepository>(create: (_) => TourRepositoryImpl()),
         Provider<HomeRepository>(create: (_) => HomeRepositoryImpl()),
+        Provider<RecentTourStorage>(create: (_) => RecentTourStorage()),
+        Provider<AnalyticsRepository>(create: (_) => AnalyticsRepository()),
+        Provider<NotificationRepository>(
+          create: (_) => NotificationRepositoryImpl(),
+        ),
         Provider<WishlistRepository>(create: (_) => WishlistRepositoryImpl()),
         Provider<AccountRepository>(create: (_) => AccountRepositoryImpl()),
         Provider<CartRepository>(create: (_) => CartRepositoryImpl()),
@@ -58,7 +69,18 @@ Future<void> main() async {
               ),
         ),
         ChangeNotifierProvider(
-          create: (context) => HomePresenter(context.read<HomeRepository>()),
+          create:
+              (context) => HomePresenter(
+                context.read<HomeRepository>(),
+                context.read<AnalyticsRepository>(),
+                recentStorage: context.read<RecentTourStorage>(),
+              ),
+        ),
+        ChangeNotifierProvider(
+          create:
+              (context) => NotificationPresenter(
+                context.read<NotificationRepository>(),
+              ),
         ),
         ChangeNotifierProvider(
           create:
@@ -75,6 +97,10 @@ Future<void> main() async {
         ),
         ChangeNotifierProvider(
           create: (context) => CartPresenter(context.read<CartRepository>()),
+        ),
+        ChangeNotifierProvider(
+          create:
+              (context) => TripsPresenter(context.read<BookingRepository>()),
         ),
       ],
       child: const MyApp(),

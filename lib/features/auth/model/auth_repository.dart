@@ -16,7 +16,10 @@ abstract class AuthRepository {
   });
 
   /// Đăng nhập bằng email và mật khẩu.
-  Future<AuthResponse> signIn({ required String identifier, required String password, });
+  Future<AuthResponse> signIn({
+    required String identifier,
+    required String password,
+  });
 
   /// Đăng xuất khỏi ứng dụng (thông báo cho backend).
   Future<void> signOut();

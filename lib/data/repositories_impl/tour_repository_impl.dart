@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../domain/entities/tour.dart';
 import '../../domain/repositories/tour_repository.dart';
@@ -40,6 +40,7 @@ class TourRepositoryHttp implements TourRepository {
         destination: m['destination'],
         durationDays: m['duration_days'],
         priceFrom: m['price_from'],
+        priceAfterDiscount: m['price_after_discount'],
         ratingAvg: m['rating_avg'],
       );
     }).toList();
@@ -65,6 +66,7 @@ class TourRepositoryHttp implements TourRepository {
       destination: m['destination'],
       durationDays: m['duration_days'],
       priceFrom: m['price_from'],
+      priceAfterDiscount: m['price_after_discount'],
       ratingAvg: m['rating_avg'],
     );
   }

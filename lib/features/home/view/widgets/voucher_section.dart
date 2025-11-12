@@ -12,7 +12,12 @@ class VoucherSection extends StatelessWidget {
         color: Colors.orange.shade100,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Center(child: Text('Voucher của bạn')),
+      child: const Center(
+        child: Text(
+          'Voucher của bạn',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 }

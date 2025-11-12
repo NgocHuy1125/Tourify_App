@@ -1,3 +1,4 @@
+﻿import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/wishlist/model/wishlist_model.dart';
@@ -51,7 +52,10 @@ class WishlistPresenter with ChangeNotifier {
         _state = WishlistState.success;
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = _humanizeError(
+        e,
+        fallback: 'Không thể tải danh sách yêu thích. Vui lòng thử lại.',
+      );
       _state = WishlistState.error;
     }
     notifyListeners();
@@ -62,13 +66,15 @@ class WishlistPresenter with ChangeNotifier {
       final item = await _repository.addTour(tourId);
       _items.insert(0, item);
       if (_state == WishlistState.empty && _isOnboarding) {
-        // stay in onboarding, just refresh UI
         notifyListeners();
         return;
       }
       _state = WishlistState.success;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = _humanizeError(
+        e,
+        fallback: 'Không thể thêm tour vào danh sách yêu thích.',
+      );
       _state = WishlistState.error;
     }
     notifyListeners();
@@ -93,7 +99,10 @@ class WishlistPresenter with ChangeNotifier {
       await _repository.removeWishlistItem(wishlistItemId);
     } catch (e) {
       _items = original;
-      _errorMessage = e.toString();
+      _errorMessage = _humanizeError(
+        e,
+        fallback: 'Không thể xóa tour khỏi danh sách yêu thích.',
+      );
       _state = WishlistState.error;
       notifyListeners();
     }
@@ -169,10 +178,51 @@ class WishlistPresenter with ChangeNotifier {
     try {
       _trendingTours = await _repository.fetchTrendingTours(limit: limit);
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = _humanizeError(
+        e,
+        fallback: 'Không thể tải tour gợi ý lúc này.',
+      );
     } finally {
       _isTrendingLoading = false;
       notifyListeners();
     }
   }
+
+  String _humanizeError(
+    Object error, {
+    String fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.',
+  }) {
+    final raw = error.toString().trim();
+    final messageFromJson = _extractJsonMessage(raw);
+    if (messageFromJson != null && messageFromJson.isNotEmpty) {
+      return messageFromJson;
+    }
+    if (raw.contains('Không nhận được phản hồi')) {
+      return 'Không nhận được phản hồi từ máy chủ. Vui lòng thử lại sau.';
+    }
+    if (raw.isNotEmpty) return raw;
+    return fallback;
+  }
+
+  String? _extractJsonMessage(String source) {
+    final start = source.indexOf('{');
+    final end = source.lastIndexOf('}');
+    if (start == -1 || end <= start) return null;
+    final snippet = source.substring(start, end + 1);
+    try {
+      final decoded = json.decode(snippet);
+      if (decoded is Map) {
+        for (final key in ['message', 'error', 'detail']) {
+          final value = decoded[key];
+          if (value is String && value.trim().isNotEmpty) {
+            return value.trim();
+          }
+        }
+      }
+    } catch (_) {
+      // ignore parse errors
+    }
+    return null;
+  }
 }
+

@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
+import 'package:tourify_app/features/home/view/widgets/tour_card_price_block.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 
 class TourCardLarge extends StatelessWidget {
+  const TourCardLarge({super.key, required this.tour, this.onTap});
+
   final TourSummary tour;
   final VoidCallback? onTap;
-  const TourCardLarge({super.key, required this.tour, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final destination =
-        tour.destination.isNotEmpty ? tour.destination : 'Điểm đến khác';
+        tour.destination.isNotEmpty
+            ? tour.destination
+            : 'Địa điểm chưa xác định';
 
     final formatter = NumberFormat.currency(
       locale: 'vi_VN',
       symbol: '₫',
       decimalDigits: 0,
     );
-    final priceText =
-        tour.priceFrom > 0
-            ? 'Từ ${formatter.format(tour.priceFrom)}'
-            : 'Giá đang cập nhật';
 
     return Material(
       color: Colors.transparent,
@@ -34,7 +35,7 @@ class TourCardLarge extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -85,12 +86,9 @@ class TourCardLarge extends StatelessWidget {
                     const SizedBox(height: 8),
                     _buildRatingRow(theme),
                     const SizedBox(height: 8),
-                    Text(
-                      priceText,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    TourCardPriceBlock(
+                      tour: tour,
+                      formatter: formatter,
                     ),
                   ],
                 ),
@@ -157,4 +155,5 @@ class TourCardLarge extends StatelessWidget {
       },
     );
   }
+
 }

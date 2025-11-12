@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:tourify_app/features/account/presenter/account_presenter.dart';
+import 'package:tourify_app/features/account/view/about_tourify_screen.dart';
+import 'package:tourify_app/features/account/view/feedback_screen.dart';
+import 'package:tourify_app/features/account/view/login_methods_screen.dart';
+import 'package:tourify_app/features/account/view/notification_settings_screen.dart';
+import 'package:tourify_app/features/account/view/security_settings_screen.dart';
 
 class AccountSettingsScreen extends StatelessWidget {
   const AccountSettingsScreen({super.key});
@@ -11,42 +17,46 @@ class AccountSettingsScreen extends StatelessWidget {
       SettingSection(
         title: 'Cài đặt tài khoản',
         items: [
-          SettingItem(title: 'Quản lý đăng nhập', onTap: () {}),
-          SettingItem(title: 'Bảo mật tài khoản', onTap: () {}),
           SettingItem(
-            title: 'Vân tay',
-            trailing: const StatusChip(
-              text: 'Chưa thiết lập',
-              color: Colors.orange,
-            ),
-            onTap: () {},
+            title: 'Quản lý đăng nhập',
+            subtitle: 'Liên kết email, số điện thoại, Google, Facebook',
+            onTap: () => _push(context, const LoginMethodsScreen()),
+          ),
+          SettingItem(
+            title: 'Bảo mật',
+            subtitle: 'Đổi mật khẩu và bảo vệ tài khoản',
+            onTap: () => _push(context, const SecuritySettingsScreen()),
+          ),
+          SettingItem(
+            title: 'Cài đặt thông báo',
+            subtitle: 'Chọn những nội dung muốn nhận',
+            onTap: () => _push(context, const NotificationSettingsScreen()),
           ),
         ],
       ),
       SettingSection(
-        title: 'Thông tin chung',
+        title: 'Hỗ trợ',
         items: [
           SettingItem(
-            title: 'Ngôn ngữ',
-            trailing: const Text('Tiếng Việt'),
-            onTap: () {},
+            title: 'Để lại phản hồi về Tourify',
+            subtitle: 'Chia sẻ góp ý để chúng tôi cải thiện trải nghiệm',
+            onTap: () => _push(context, const FeedbackScreen()),
           ),
           SettingItem(
-            title: 'Tiền tệ',
-            trailing: const Text('VND | đ'),
-            onTap: () {},
+            title: 'Về Tourify',
+            subtitle: 'Giới thiệu và liên kết trang web',
+            onTap: () => _push(context, const AboutTourifyScreen()),
           ),
-          SettingItem(title: 'Cài đặt thông báo', onTap: () {}),
         ],
       ),
       SettingSection(
-        title: 'Khác',
+        title: 'Tài khoản',
         items: [
-          SettingItem(title: 'Để lại phản hồi', onTap: () {}),
-          SettingItem(title: 'Về Tourify', onTap: () {}),
           SettingItem(
             title: 'Đăng xuất',
-            trailing: const Icon(Icons.logout, size: 18, color: Colors.red),
+            leading: const Icon(Icons.logout, color: Colors.redAccent),
+            trailing: const Icon(Icons.chevron_right, color: Colors.redAccent),
+            titleStyle: const TextStyle(color: Colors.redAccent),
             onTap: () => _handleSignOut(context),
           ),
         ],
@@ -68,7 +78,9 @@ class AccountSettingsScreen extends StatelessWidget {
       builder:
           (ctx) => AlertDialog(
             title: const Text('Đăng xuất'),
-            content: const Text('Bạn có chắc chắn đăng xuất khỏi tài khoản?'),
+            content: const Text(
+              'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
@@ -90,12 +102,17 @@ class AccountSettingsScreen extends StatelessWidget {
       if (context.mounted) Navigator.of(context).pop();
     }
   }
+
+  void _push(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
 }
 
 class SettingSection extends StatelessWidget {
+  const SettingSection({super.key, required this.title, required this.items});
+
   final String title;
   final List<SettingItem> items;
-  const SettingSection({super.key, required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -113,48 +130,45 @@ class SettingSection extends StatelessWidget {
             ).textTheme.labelLarge?.copyWith(color: Colors.grey.shade700),
           ),
         ),
-        ...items.map((item) => item.buildTile(context)).toList(),
+        ...items.map((item) => item.buildTile(context)),
       ],
     );
   }
 }
 
 class SettingItem {
+  const SettingItem({
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.trailing,
+    this.leading,
+    this.titleStyle,
+  });
+
   final String title;
   final String? subtitle;
   final Widget? trailing;
+  final Widget? leading;
   final VoidCallback onTap;
-  const SettingItem({
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    required this.onTap,
-  });
+  final TextStyle? titleStyle;
 
   Widget buildTile(BuildContext context) {
     return ListTile(
-      title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
-      trailing: trailing ?? const Icon(Icons.chevron_right),
       onTap: onTap,
-    );
-  }
-}
-
-class StatusChip extends StatelessWidget {
-  final String text;
-  final Color color;
-  const StatusChip({super.key, required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.fiber_manual_record, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(text, style: TextStyle(color: color, fontSize: 12)),
-      ],
+      leading: leading,
+      title: Text(
+        title,
+        style: titleStyle ?? const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      subtitle:
+          subtitle != null
+              ? Text(
+                subtitle!,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              )
+              : null,
+      trailing: trailing ?? const Icon(Icons.chevron_right),
     );
   }
 }

@@ -1,4 +1,4 @@
-import 'package:tourify_app/features/tour/model/tour_model.dart';
+﻿import 'package:tourify_app/features/tour/model/tour_model.dart';
 
 class WishlistItem {
   final String id;

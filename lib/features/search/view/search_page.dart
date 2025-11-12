@@ -51,7 +51,7 @@ class _TourTile extends StatelessWidget {
     return ListTile(
       title: Text(tour.title),
       subtitle: Text('${tour.destination} • ${tour.durationDays}N'),
-      trailing: Text('${tour.priceFrom.toStringAsFixed(0)} ₫'),
+      trailing: Text('${tour.displayPrice.toStringAsFixed(0)} ₫'),
       onTap: () => context.push('/tour/${tour.id}'),
     );
   }

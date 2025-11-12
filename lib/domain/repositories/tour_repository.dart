@@ -1,4 +1,4 @@
-import '../entities/tour.dart';
+﻿import '../entities/tour.dart';
 
 abstract class TourRepository {
   Future<List<Tour>> search({String? q, int? minPrice, int? maxPrice});

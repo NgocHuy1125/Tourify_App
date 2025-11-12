@@ -1,4 +1,4 @@
-import 'package:flutter/services.dart' show rootBundle;
+﻿import 'package:flutter/services.dart' show rootBundle;
 
 class AppConfig {
   static String supabaseUrl = '';

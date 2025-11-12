@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -32,34 +34,38 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
   final _contactEmail = TextEditingController();
   final _contactPhone = TextEditingController();
   final _notes = TextEditingController();
+  final _promotionCode = TextEditingController();
 
   late final List<_PassengerFormData> _passengers;
 
   bool _isSubmitting = false;
   String _selectedMethod = _PaymentMethod.sepay.id;
 
-  bool get _requiresDocument =>
-      widget.detail.requiresPassport || widget.detail.requiresVisa;
-  int? get _childAgeLimit => widget.detail.childAgeLimit;
-
   double get _adultPrice => widget.package.adultPrice;
   double get _childPrice =>
       widget.package.childPrice ?? widget.package.adultPrice;
-  double get _totalAmount =>
+
+  double get _discountFactor => widget.detail.autoPromotionFactor;
+  double get _discountedAdultPrice =>
+      (_adultPrice * _discountFactor).clamp(0, _adultPrice);
+  double get _discountedChildPrice =>
+      (_childPrice * _discountFactor).clamp(0, _childPrice);
+
+  double get _baseSubtotal =>
       (widget.adults * _adultPrice) + (widget.children * _childPrice);
+
+  double get _totalAmount =>
+      (widget.adults * _discountedAdultPrice) +
+      (widget.children * _discountedChildPrice);
 
   @override
   void initState() {
     super.initState();
     _passengers = [
       for (var index = 0; index < widget.adults; index++)
-        _PassengerFormData(type: 'adult', requiresDocument: _requiresDocument),
+        _PassengerFormData(type: 'adult'),
       for (var index = 0; index < widget.children; index++)
-        _PassengerFormData(
-          type: 'child',
-          requiresDocument: _requiresDocument,
-          childAgeLimit: _childAgeLimit,
-        ),
+        _PassengerFormData(type: 'child'),
     ];
   }
 
@@ -69,10 +75,38 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
     _contactEmail.dispose();
     _contactPhone.dispose();
     _notes.dispose();
+    _promotionCode.dispose();
     for (final passenger in _passengers) {
       passenger.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _showAwaitingConfirmationDialog(String message) async {
+    if (!mounted) return;
+    final trimmed = message.trim();
+    final displayMessage =
+        trimmed.isNotEmpty
+            ? trimmed
+            : 'Thanh toán đã được ghi nhận. Vui lòng chờ Tourify xác nhận.';
+
+    await showDialog<void>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Đang chờ xác nhận'),
+            content: Text(displayMessage),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Về trang chủ'),
+              ),
+            ],
+          ),
+    );
+
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   Future<void> _handleSubmit() async {
@@ -90,15 +124,18 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       return;
     }
 
-    final today = DateTime.now();
-    for (var index = 0; index < _passengers.length; index++) {
-      final message = _passengers[index].validate(today);
-      if (message != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hành khách số ${index + 1}: $message')),
-        );
-        return;
-      }
+    final incompletePassenger = _passengers.indexWhere(
+      (passenger) => !passenger.isValid,
+    );
+    if (incompletePassenger != -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Hành khách số ${incompletePassenger + 1} chưa điền đầy đủ thông tin.',
+          ),
+        ),
+      );
+      return;
     }
 
     setState(() => _isSubmitting = true);
@@ -115,6 +152,7 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       paymentMethod: _selectedMethod,
       notes: _notes.text.trim(),
       passengers: _passengers.map((e) => e.toPassenger()).toList(),
+      promotionCode: _promotionCode.text.trim(),
     );
 
     try {
@@ -123,9 +161,16 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
 
       if (!mounted) return;
 
+      final qrUrl = response.paymentQrUrl ?? '';
+      final redirectUrl = response.paymentUrl ?? '';
+      final fallbackMessage =
+          response.message.isNotEmpty
+              ? response.message
+              : 'Thanh toán đã được ghi nhận. Vui lòng chờ Tourify xác nhận.';
+
       if (_selectedMethod == _PaymentMethod.sepay.id &&
-          (response.paymentUrl ?? '').isNotEmpty) {
-        await showModalBottomSheet<void>(
+          (qrUrl.isNotEmpty || redirectUrl.isNotEmpty)) {
+        final acknowledged = await showModalBottomSheet<bool>(
           context: context,
           isScrollControlled: true,
           shape: const RoundedRectangleBorder(
@@ -133,30 +178,21 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
           ),
           builder:
               (_) => PaymentQRCodeSheet(
-                paymentUrl: response.paymentUrl!,
-                amount: _totalAmount,
+                amount: response.totalPrice ?? _totalAmount,
+                subtotal: _totalAmount,
+                discountTotal: response.discountTotal,
+                promotions: response.promotions,
                 bookingId: response.id,
+                qrImageUrl: qrUrl,
+                paymentUrl: redirectUrl,
               ),
         );
+
+        if (acknowledged == true) {
+          await _showAwaitingConfirmationDialog(fallbackMessage);
+        }
       } else {
-        await showDialog<void>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: const Text('Đặt tour thành công'),
-                content: Text(
-                  response.message.isNotEmpty
-                      ? response.message
-                      : 'Chúng tôi sẽ liên hệ để xác nhận trong thời gian sớm nhất.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Đóng'),
-                  ),
-                ],
-              ),
-        );
+        await _showAwaitingConfirmationDialog(fallbackMessage);
       }
     } catch (error) {
       if (!mounted) return;
@@ -204,9 +240,16 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               adults: widget.adults,
               children: widget.children,
               totalFormatted: currency.format(_totalAmount),
+              subtotalFormatted:
+                  _discountFactor < 1 ? currency.format(_baseSubtotal) : null,
+              discountFormatted:
+                  _discountFactor < 1
+                      ? currency.format((_baseSubtotal - _totalAmount).clamp(0, double.infinity))
+                      : null,
+              autoPromotion: widget.detail.autoPromotion,
             ),
             const SizedBox(height: 24),
-            const _SectionTitle(title: 'Thông tin liên hệ'),
+            _SectionTitle(title: 'Thông tin liên hệ'),
             const SizedBox(height: 12),
             _ContactField(
               controller: _contactName,
@@ -233,11 +276,11 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               validator: _requiredValidator,
             ),
             const SizedBox(height: 24),
-            const _SectionTitle(title: 'Danh sách hành khách'),
+            _SectionTitle(title: 'Danh sách hành khách'),
             const SizedBox(height: 12),
             ..._buildPassengerCards(),
             const SizedBox(height: 24),
-            const _SectionTitle(title: 'Ghi chú cho nhà tổ chức'),
+            _SectionTitle(title: 'Ghi chú cho nhà tổ chức'),
             const SizedBox(height: 12),
             _ContactField(
               controller: _notes,
@@ -246,7 +289,21 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               maxLines: 3,
             ),
             const SizedBox(height: 24),
-            const _SectionTitle(title: 'Phương thức thanh toán'),
+            _SectionTitle(title: 'Khuyến mãi'),
+            const SizedBox(height: 12),
+            _ContactField(
+              controller: _promotionCode,
+              label: 'Mã khuyến mãi (nếu có)',
+              hint: 'SALE10',
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Hệ thống sẽ tự động áp dụng thêm khuyến mãi phù hợp của tour.',
+              style: TextStyle(color: Colors.black54, fontSize: 12),
+            ),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Phương thức thanh toán'),
             const SizedBox(height: 12),
             ..._PaymentMethod.values.map(
               (method) => Card(
@@ -326,7 +383,7 @@ class _CheckoutBottomBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
@@ -389,6 +446,9 @@ class _BookingSummaryCard extends StatelessWidget {
   final int adults;
   final int children;
   final String totalFormatted;
+  final String? subtotalFormatted;
+  final String? discountFormatted;
+  final AutoPromotion? autoPromotion;
 
   const _BookingSummaryCard({
     required this.detail,
@@ -397,6 +457,9 @@ class _BookingSummaryCard extends StatelessWidget {
     required this.adults,
     required this.children,
     required this.totalFormatted,
+    this.subtotalFormatted,
+    this.discountFormatted,
+    this.autoPromotion,
   });
 
   @override
@@ -408,22 +471,8 @@ class _BookingSummaryCard extends StatelessWidget {
       if (schedule == null) return 'Chưa chọn lịch cố định';
       final start = dateFormat.format(schedule!.startDate);
       final end = dateFormat.format(schedule!.endDate);
-      return '$start - $end';
+      return '$start – $end';
     }
-
-    final typeLabel =
-        detail.type == 'international' ? 'Tour quốc tế' : 'Tour nội địa';
-    final docLabel =
-        detail.requiresPassport || detail.requiresVisa
-            ? [
-              if (detail.requiresPassport) 'Cần hộ chiếu',
-              if (detail.requiresVisa) 'Cần visa',
-            ].join(' · ')
-            : 'Không yêu cầu giấy tờ đặc biệt';
-    final childLabel =
-        detail.childAgeLimit != null
-            ? 'Trẻ em ≤ ${detail.childAgeLimit} tuổi'
-            : 'Không giới hạn độ tuổi trẻ em';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -458,25 +507,22 @@ class _BookingSummaryCard extends StatelessWidget {
           ),
           _SummaryRow(
             label: 'Số khách',
-            value: '$adults người lớn & $children trẻ em',
-            valueColor: Colors.white70,
-          ),
-          _SummaryRow(
-            label: 'Loại tour',
-            value: typeLabel,
-            valueColor: Colors.white70,
-          ),
-          _SummaryRow(
-            label: 'Quy định giấy tờ',
-            value: docLabel,
-            valueColor: Colors.white70,
-          ),
-          _SummaryRow(
-            label: 'Độ tuổi trẻ em',
-            value: childLabel,
+            value: '$adults người lớn · $children trẻ em',
             valueColor: Colors.white70,
           ),
           const Divider(color: Colors.white24, height: 24),
+          if (subtotalFormatted != null)
+            _SummaryRow(
+              label: 'Tạm tính',
+              value: subtotalFormatted!,
+              valueColor: Colors.white70,
+            ),
+          if (discountFormatted != null)
+            _SummaryRow(
+              label: 'Ưu đãi ước tính',
+              value: '-$discountFormatted',
+              valueColor: Colors.white70,
+            ),
           Text(
             'Tổng cộng $totalFormatted',
             style: theme.textTheme.titleLarge?.copyWith(
@@ -484,6 +530,17 @@ class _BookingSummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (autoPromotion != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                autoPromotion?.description ??
+                    'Đã áp dụng khuyến mãi ${autoPromotion?.code}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.white70,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -509,7 +566,7 @@ class _SummaryRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 110,
             child: Text(label, style: const TextStyle(color: Colors.white70)),
           ),
           Expanded(
@@ -616,9 +673,6 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
 
   @override
   Widget build(BuildContext context) {
-    final requiresDocument = widget.data.requiresDocument;
-    final childLimit = widget.data.childAgeLimit;
-
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -671,20 +725,17 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
             ),
             const SizedBox(height: 12),
             InkWell(
-              onTap: widget.data.type == 'child' ? _pickDob : _pickDob,
+              onTap: _pickDob,
               borderRadius: BorderRadius.circular(12),
               child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText:
-                      widget.data.type == 'child' ? 'Ngày sinh *' : 'Ngày sinh',
-                  border: const OutlineInputBorder(),
+                decoration: const InputDecoration(
+                  labelText: 'Ngày sinh',
+                  border: OutlineInputBorder(),
                 ),
                 child: Text(
                   widget.data.dateOfBirth != null
                       ? _dateFormat.format(widget.data.dateOfBirth!)
-                      : widget.data.type == 'child'
-                      ? 'Chưa chọn'
-                      : 'Không bắt buộc',
+                      : 'Chưa chọn',
                   style: TextStyle(
                     color:
                         widget.data.dateOfBirth != null
@@ -694,26 +745,12 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
                 ),
               ),
             ),
-            if (widget.data.type == 'child' && childLimit != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Yêu cầu: trẻ em không vượt quá $childLimit tuổi.',
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            ],
             const SizedBox(height: 12),
             TextFormField(
               controller: widget.data.documentController,
-              decoration: InputDecoration(
-                labelText:
-                    requiresDocument
-                        ? 'Số giấy tờ (CMND/CCCD/Hộ chiếu) *'
-                        : 'Số giấy tờ (CMND/CCCD/Hộ chiếu)',
-                helperText:
-                    requiresDocument
-                        ? 'Bắt buộc vì tour yêu cầu hộ chiếu hoặc visa.'
-                        : 'Có thể bỏ trống nếu không cần cung cấp.',
-                border: const OutlineInputBorder(),
+              decoration: const InputDecoration(
+                labelText: 'Số giấy tờ (CMND/CCCD/Hộ chiếu)',
+                border: OutlineInputBorder(),
               ),
             ),
           ],
@@ -725,42 +762,14 @@ class _PassengerFormCardState extends State<_PassengerFormCard> {
 
 class _PassengerFormData {
   final String type;
-  final bool requiresDocument;
-  final int? childAgeLimit;
   final TextEditingController nameController = TextEditingController();
   final TextEditingController documentController = TextEditingController();
   String? gender;
   DateTime? dateOfBirth;
 
-  _PassengerFormData({
-    required this.type,
-    required this.requiresDocument,
-    this.childAgeLimit,
-  });
+  _PassengerFormData({required this.type});
 
-  String? validate(DateTime today) {
-    if (nameController.text.trim().isEmpty) {
-      return 'Vui lòng nhập họ tên.';
-    }
-
-    if (type == 'child') {
-      if (dateOfBirth == null) {
-        return 'Cần chọn ngày sinh cho trẻ em.';
-      }
-      if (childAgeLimit != null) {
-        final age = _calculateAge(dateOfBirth!, today);
-        if (age > childAgeLimit!) {
-          return 'Tuổi vượt quá giới hạn ${childAgeLimit!} tuổi.';
-        }
-      }
-    }
-
-    if (requiresDocument && documentController.text.trim().isEmpty) {
-      return 'Cần nhập số giấy tờ cho tour này.';
-    }
-
-    return null;
-  }
+  bool get isValid => nameController.text.trim().isNotEmpty;
 
   BookingPassenger toPassenger() {
     return BookingPassenger(
@@ -778,15 +787,6 @@ class _PassengerFormData {
   void dispose() {
     nameController.dispose();
     documentController.dispose();
-  }
-
-  int _calculateAge(DateTime birthDate, DateTime today) {
-    var age = today.year - birthDate.year;
-    final hasHadBirthday =
-        today.month > birthDate.month ||
-        (today.month == birthDate.month && today.day >= birthDate.day);
-    if (!hasHadBirthday) age--;
-    return age;
   }
 }
 
@@ -821,16 +821,24 @@ class _PaymentMethod {
 }
 
 class PaymentQRCodeSheet extends StatelessWidget {
-  final String paymentUrl;
-  final double amount;
-  final String bookingId;
-
   const PaymentQRCodeSheet({
     super.key,
-    required this.paymentUrl,
     required this.amount,
     required this.bookingId,
+    this.qrImageUrl,
+    this.paymentUrl,
+    this.promotions = const [],
+    this.discountTotal,
+    this.subtotal,
   });
+
+  final double amount;
+  final String bookingId;
+  final String? qrImageUrl;
+  final String? paymentUrl;
+  final List<AppliedPromotion> promotions;
+  final double? discountTotal;
+  final double? subtotal;
 
   @override
   Widget build(BuildContext context) {
@@ -870,11 +878,7 @@ class PaymentQRCodeSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               color: const Color(0xFFFFF5ED),
             ),
-            child: QrImageView(
-              data: paymentUrl,
-              version: QrVersions.auto,
-              size: 220,
-            ),
+            child: _buildQrWidget(),
           ),
           const SizedBox(height: 16),
           Text('Mã đơn: $bookingId'),
@@ -883,21 +887,202 @@ class PaymentQRCodeSheet extends StatelessWidget {
             'Số tiền: ${currency.format(amount)}',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
+          const SizedBox(height: 12),
+          _buildBreakdown(currency),
           const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF6B2C),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(26),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B2C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 42,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
+                ),
               ),
+              child: const Text('Tôi đã thanh toán'),
             ),
-            child: const Text('Tôi đã thanh toán'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildQrWidget() {
+    final directSource = qrImageUrl?.trim();
+    if (directSource != null && directSource.isNotEmpty) {
+      return _buildQrFromSource(directSource);
+    }
+
+    final fallback = paymentUrl?.trim();
+    if (fallback != null && fallback.isNotEmpty) {
+      return _buildGeneratedQr(fallback);
+    }
+
+    return _buildPlaceholderQr();
+  }
+
+  Widget _buildBreakdown(NumberFormat currency) {
+    final discount = discountTotal ?? 0;
+    if ((promotions.isEmpty) && (discount <= 0) && (subtotal == null)) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (subtotal != null)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Tạm tính', style: TextStyle(color: Colors.black54)),
+              Text(currency.format(subtotal)),
+            ],
+          ),
+        if (promotions.isNotEmpty || discount > 0) ...[
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Khuyến mãi', style: TextStyle(color: Colors.black54)),
+              Text(
+                '-${currency.format(discount > 0 ? discount : promotions.fold<double>(0, (sum, promo) => sum + promo.discountAmount))}',
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            ],
+          ),
+          if (promotions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: promotions.map((promo) {
+                  final amount = currency.format(promo.discountAmount);
+                  return Text(
+                    '${promo.code}: -$amount',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildQrFromSource(String source) {
+    if (source.startsWith('data:image')) {
+      final commaIndex = source.indexOf(',');
+      final data =
+          commaIndex != -1 ? source.substring(commaIndex + 1) : source;
+      final widget = _buildBase64QrImage(data);
+      if (widget != null) return widget;
+    } else if (_looksLikeBase64(source)) {
+      final widget = _buildBase64QrImage(source);
+      if (widget != null) return widget;
+    }
+
+    return _buildNetworkQrImage(source, fallbackData: source);
+  }
+
+  Widget? _buildBase64QrImage(String data) {
+    try {
+      final normalized = data.replaceAll(RegExp(r'\s'), '');
+      final bytes = base64Decode(normalized);
+      return _buildImageFromBytes(bytes);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _buildNetworkQrImage(String url, {String? fallbackData}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.network(
+        url,
+        height: 220,
+        width: 220,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const SizedBox(
+            height: 220,
+            width: 220,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        },
+        errorBuilder: (_, __, ___) {
+          if (fallbackData != null && fallbackData.isNotEmpty) {
+            return _buildGeneratedQr(fallbackData);
+          }
+          return _buildPlaceholderIcon();
+        },
+      ),
+    );
+  }
+
+  Widget _buildImageFromBytes(List<int> bytes) {
+    final buffer = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.memory(
+        buffer,
+        height: 220,
+        width: 220,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  Widget _buildGeneratedQr(String data) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: QrImageView(
+        data: data,
+        version: QrVersions.auto,
+        size: 220,
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderQr() {
+    return const SizedBox(
+      height: 220,
+      width: 220,
+      child: Center(child: _PaymentQrPlaceholderIcon()),
+    );
+  }
+
+  Widget _buildPlaceholderIcon() {
+    return const _PaymentQrPlaceholderIcon();
+  }
+
+  bool _looksLikeBase64(String source) {
+    if (source.length < 60) return false;
+    final normalized = source.replaceAll(RegExp(r'\s'), '');
+    final base64Pattern = RegExp(r'^[A-Za-z0-9+/]+={0,2}$');
+    return base64Pattern.hasMatch(normalized);
+  }
+}
+
+class _PaymentQrPlaceholderIcon extends StatelessWidget {
+  const _PaymentQrPlaceholderIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = Theme.of(context).colorScheme.primary;
+    return Icon(
+      Icons.qr_code_2_rounded,
+      size: 200,
+      color: baseColor.withAlpha(153),
     );
   }
 }

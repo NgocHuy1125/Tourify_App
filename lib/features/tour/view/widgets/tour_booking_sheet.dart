@@ -17,6 +17,7 @@ class BookingSheet {
     int adultCount = 1;
     int childCount = 0;
     bool isLoading = false;
+    bool showFullDescription = false;
 
     TourSchedule? currentSchedule() {
       if (selectedScheduleId == null) return null;
@@ -143,12 +144,40 @@ class BookingSheet {
                                 ),
                                 if (package.description.isNotEmpty)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      package.description,
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                      ),
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          package.description,
+                                          maxLines: showFullDescription ? null : 3,
+                                          overflow:
+                                              showFullDescription
+                                                  ? TextOverflow.visible
+                                                  : TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                        if (package.description.length > 120)
+                                          TextButton(
+                                            style: TextButton.styleFrom(
+                                              padding: EdgeInsets.zero,
+                                              minimumSize: const Size(0, 0),
+                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                            ),
+                                            onPressed: () => setState(
+                                              () => showFullDescription = !showFullDescription,
+                                            ),
+                                            child: Text(
+                                              showFullDescription ? 'Thu gọn' : 'Xem thêm',
+                                              style: const TextStyle(
+                                                color: Color(0xFFFF5B00),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                               ],

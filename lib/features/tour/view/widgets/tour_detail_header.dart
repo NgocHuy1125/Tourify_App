@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 
@@ -9,9 +9,10 @@ class HeroCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final media = detail.media.isNotEmpty
-        ? detail.media
-        : ['https://via.placeholder.com/800x500?text=Tour'];
+    final media =
+        detail.media.isNotEmpty
+            ? detail.media
+            : ['https://via.placeholder.com/800x500?text=Tour'];
 
     return Stack(
       children: [
@@ -22,11 +23,12 @@ class HeroCarousel extends StatelessWidget {
             return Image.network(
               url,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: Colors.grey.shade200,
-                alignment: Alignment.center,
-                child: const Icon(Icons.image_not_supported, size: 48),
-              ),
+              errorBuilder:
+                  (_, __, ___) => Container(
+                    color: Colors.grey.shade200,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.image_not_supported, size: 48),
+                  ),
             );
           },
         ),
@@ -65,6 +67,10 @@ class TourDetailHeader extends StatelessWidget {
     final rating = reviews.average;
     final ratingCount = reviews.count;
     final currency = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+    final discountedPrice = detail.priceAfterDiscount ?? detail.basePrice;
+    final hasDiscount =
+        detail.priceAfterDiscount != null &&
+        detail.priceAfterDiscount! < detail.basePrice;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
@@ -82,24 +88,25 @@ class TourDetailHeader extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: detail.tags
-                  .map(
-                    (tag) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        tag,
-                        style: const TextStyle(color: Color(0xFFFF5B00)),
-                      ),
-                    ),
-                  )
-                  .toList(),
+              children:
+                  detail.tags
+                      .map(
+                        (tag) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            tag,
+                            style: const TextStyle(color: Color(0xFFFF5B00)),
+                          ),
+                        ),
+                      )
+                      .toList(),
             ),
           const SizedBox(height: 12),
           Text(
@@ -123,11 +130,11 @@ class TourDetailHeader extends StatelessWidget {
                 '($ratingCount đánh giá)',
                 style: const TextStyle(color: Colors.black54),
               ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
               const Icon(Icons.location_on_outlined, size: 18),
               const SizedBox(width: 4),
               Expanded(
@@ -137,9 +144,9 @@ class TourDetailHeader extends StatelessWidget {
                       : 'Đang cập nhật địa điểm',
                   style: const TextStyle(color: Colors.black87),
                 ),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -193,15 +200,41 @@ class TourDetailHeader extends StatelessWidget {
               style: const TextStyle(color: Colors.black54),
             ),
           ],
-          if (detail.basePrice > 0) ...[
+          if (discountedPrice > 0) ...[
             const SizedBox(height: 8),
-            Text(
-              'Giá cơ bản: ${currency.format(detail.basePrice)}',
-              style: const TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              children: [
+                Text(
+                  'Giá từ: ${currency.format(discountedPrice)}',
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (hasDiscount) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    currency.format(detail.basePrice),
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  ),
+                ],
+              ],
             ),
+            if (detail.autoPromotion != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  detail.autoPromotion?.description ??
+                      'Đã áp dụng khuyến mãi ${detail.autoPromotion?.code}',
+                  style: const TextStyle(
+                    color: Color(0xFFFF5B00),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
           ],
         ],
       ),
@@ -211,16 +244,17 @@ class TourDetailHeader extends StatelessWidget {
   void _showDescriptionDialog(BuildContext context, TourDetail detail) {
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(detail.title),
-        content: SingleChildScrollView(child: Text(detail.description)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
+      builder:
+          (_) => AlertDialog(
+            title: Text(detail.title),
+            content: SingleChildScrollView(child: Text(detail.description)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Đóng'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }

@@ -1,5 +1,5 @@
-// lib/features/home/view/widgets/suggestion_tab_section.dart
 import 'package:flutter/material.dart';
+
 import 'package:tourify_app/features/home/presenter/home_presenter.dart';
 import 'package:tourify_app/features/home/view/all_tours_screen.dart';
 import 'package:tourify_app/features/home/view/widgets/tour_card_large.dart';
@@ -7,8 +7,9 @@ import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/tour/view/tour_detail_page.dart';
 
 class SuggestionTabSection extends StatelessWidget {
-  final HomePresenter presenter;
   const SuggestionTabSection({super.key, required this.presenter});
+
+  final HomePresenter presenter;
 
   @override
   Widget build(BuildContext context) {
@@ -23,11 +24,10 @@ class SuggestionTabSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Đề xuất dành cho bạn',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            'Các hoạt động nổi bật',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 12),
@@ -35,10 +35,13 @@ class SuggestionTabSection extends StatelessWidget {
         const SizedBox(height: 12),
         Center(
           child: TextButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              await Navigator.of(
+                context,
+              ).push(
                 MaterialPageRoute(builder: (_) => const AllToursScreen()),
               );
+              await presenter.refreshRecentTours();
             },
             icon: const Icon(Icons.list_alt_outlined),
             label: const Text('Xem tất cả tour'),
@@ -95,7 +98,7 @@ class SuggestionTabSection extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        mainAxisExtent: 320,
+        mainAxisExtent: 360,
       ),
       itemCount: tours.length,
       itemBuilder: (context, index) {
@@ -108,10 +111,11 @@ class SuggestionTabSection extends StatelessWidget {
     );
   }
 
-  void _openDetail(BuildContext context, TourSummary tour) {
+  Future<void> _openDetail(BuildContext context, TourSummary tour) async {
     if (tour.id.isEmpty) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TourDetailPage(id: tour.id)),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => TourDetailPage(id: tour.id)));
+    await presenter.refreshRecentTours();
   }
 }

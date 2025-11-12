@@ -400,8 +400,7 @@ Map<String, dynamic>? _findCartSummary(
 
     if (_isLikelySummary(source)) {
       return {
-        for (final entry in source.entries)
-          entry.key.toString(): entry.value,
+        for (final entry in source.entries) entry.key.toString(): entry.value,
       };
     }
 

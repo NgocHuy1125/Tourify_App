@@ -1,8 +1,11 @@
-﻿import 'dart:math';
+import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:tourify_app/features/home/model/home_models.dart';
+import 'package:tourify_app/features/home/model/recent_tour_storage.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/tour/model/tour_repository.dart';
@@ -33,6 +36,23 @@ class _TourDetailPageState extends State<TourDetailPage> {
   Future<_TourDetailBundle> _load() async {
     final repo = context.read<TourRepository>();
     final detail = await repo.getTourDetails(widget.id);
+
+    unawaited(Future(() async {
+      try {
+        await repo.trackTourView(widget.id);
+      } catch (_) {
+        // ignore tracking error
+      }
+    }));
+
+    final storage = context.read<RecentTourStorage>();
+    final summary = detail.toSummary();
+    await storage.upsert(
+      RecentTourItem.fromSummary(
+        summary,
+        viewedAt: DateTime.now(),
+      ),
+    );
 
     TourReviewsResponse reviews;
     try {
@@ -171,7 +191,7 @@ class _TourDetailViewState extends State<_TourDetailView> {
     final minPrice =
         detail.packages.isNotEmpty
             ? detail.packages.map((pkg) => pkg.adultPrice).reduce(min)
-            : detail.basePrice;
+            : (detail.priceAfterDiscount ?? detail.basePrice);
     final priceText = NumberFormat.currency(
       locale: 'vi_VN',
       symbol: '₫',
@@ -301,9 +321,9 @@ class _TourDetailViewState extends State<_TourDetailView> {
                     cart.state == CartState.error) {
                   cart.loadCart();
                 }
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CartScreen()),
-                );
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const CartScreen()));
               },
             );
           },
@@ -426,10 +446,7 @@ class _CartActionIcon extends StatelessWidget {
   final int count;
   final VoidCallback onPressed;
 
-  const _CartActionIcon({
-    required this.count,
-    required this.onPressed,
-  });
+  const _CartActionIcon({required this.count, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -477,4 +494,3 @@ class _TourDetailBundle {
     required this.suggestions,
   });
 }
-

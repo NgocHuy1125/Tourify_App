@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 
 class TourCard extends StatelessWidget {
-  final TourSummary tour;
   const TourCard({super.key, required this.tour});
+
+  final TourSummary tour;
 
   @override
   Widget build(BuildContext context) {
@@ -13,19 +15,19 @@ class TourCard extends StatelessWidget {
       symbol: '₫',
       decimalDigits: 0,
     );
+    final hasDiscount = tour.displayPrice < tour.priceFrom;
     final priceText =
-        tour.priceFrom > 0
-            ? formatter.format(tour.priceFrom)
+        tour.displayPrice > 0
+            ? formatter.format(tour.displayPrice)
             : 'Giá đang cập nhật';
 
     return GestureDetector(
       onTap: () {
-        print('Tapped on tour: ${tour.title}');
+        debugPrint('Tapped on tour: ${tour.title}');
       },
       child: Container(
         width: 150,
         margin: const EdgeInsets.only(right: 12),
-
         child: Card(
           elevation: 2,
           clipBehavior: Clip.antiAlias,
@@ -41,16 +43,14 @@ class TourCard extends StatelessWidget {
                   width: double.infinity,
                   fit: BoxFit.cover,
                   errorBuilder:
-                      (context, error, stackTrace) =>
+                      (_, __, ___) =>
                           const Center(child: Icon(Icons.image_not_supported)),
                 ),
               ),
-
-              // Cho phép phần text chiếm phần không gian còn lại
               Flexible(
-                flex: 2, // Chiếm 2 phần không gian
+                flex: 2,
                 child: Padding(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(8),
                   child: Text(
                     tour.title,
                     style: const TextStyle(
@@ -65,13 +65,39 @@ class TourCard extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                child: Text(
-                  priceText,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Color(0xFFFF5B00),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      priceText,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: Color(0xFFFF5B00),
+                      ),
+                    ),
+                    if (hasDiscount)
+                      Text(
+                        formatter.format(tour.priceFrom),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                    if (tour.hasAutoPromotion)
+                      Text(
+                        tour.autoPromotion?.description ??
+                            'Giảm ${formatter.format(tour.autoPromotion!.discountAmount)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFFF5B00),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],

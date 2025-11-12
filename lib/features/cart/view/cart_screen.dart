@@ -1,9 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:tourify_app/features/booking/view/booking_checkout_page.dart';
 import 'package:tourify_app/features/cart/model/cart_model.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
 import 'package:tourify_app/features/cart/view/widgets/cart_empty_view.dart';
+import 'package:tourify_app/features/tour/model/tour_repository_impl.dart';
+import 'package:tourify_app/features/tour/model/tour_model.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -181,7 +184,7 @@ class _SelectAllTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -250,7 +253,7 @@ class _CartItemCard extends StatelessWidget {
           BoxShadow(
             color: const Color(
               0xFFFF8A3D,
-            ).withOpacity(isSelected ? 0.22 : 0.08),
+            ).withValues(alpha: isSelected ? 0.22 : 0.08),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -443,7 +446,8 @@ class _CartItemCard extends StatelessWidget {
     if (item.price != 0) return item.price;
     final subtotal = item.adultSubtotal + item.childSubtotal;
     if (subtotal != 0) return subtotal;
-    final unit = item.tour?.priceFrom ?? 0;
+    final unit =
+        item.tour?.priceAfterDiscount ?? item.tour?.priceFrom ?? 0;
     if (unit == 0) return 0;
     final passengers = item.adults + item.children;
     final quantity =
@@ -524,6 +528,109 @@ class _CartSummaryBar extends StatelessWidget {
 
   const _CartSummaryBar({required this.presenter, required this.currency});
 
+  Future<void> _startCheckout(BuildContext context) async {
+    final selected = presenter.selectedItems;
+    if (selected.isEmpty) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    if (selected.length > 1) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn một tour để thanh toán.'),
+        ),
+      );
+      return;
+    }
+
+    final item = selected.first;
+    final tourId = item.tour?.id ?? '';
+    if (tourId.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin tour phù hợp.'),
+        ),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    var dialogClosed = false;
+    void closeDialog() {
+      if (!dialogClosed) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogClosed = true;
+      }
+    }
+
+    try {
+      final tourRepo = TourRepositoryImpl();
+      final detail = await tourRepo.getTourDetails(tourId);
+
+      if (detail.packages.isEmpty) {
+        throw Exception('Tour chưa có gói dịch vụ khả dụng.');
+      }
+
+      TourPackage package;
+      try {
+        package = detail.packages.firstWhere(
+          (pkg) => pkg.id == item.packageId,
+        );
+      } catch (_) {
+        package = detail.packages.first;
+      }
+
+      TourSchedule? schedule;
+      if (item.scheduleId.isNotEmpty && detail.schedules.isNotEmpty) {
+        try {
+          schedule = detail.schedules.firstWhere(
+            (s) => s.id == item.scheduleId,
+          );
+        } catch (_) {
+          schedule = detail.schedules.first;
+        }
+      } else if (detail.schedules.length == 1) {
+        schedule = detail.schedules.first;
+      }
+
+      final adults = item.adults > 0 ? item.adults : item.quantity;
+      final children = item.children;
+
+      closeDialog();
+
+      await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => BookingCheckoutPage(
+            detail: detail,
+            package: package,
+            schedule: schedule,
+            adults: adults,
+            children: children,
+          ),
+        ),
+      );
+
+      if (!context.mounted) return;
+      await presenter.loadCart(showLoading: false);
+    } catch (error) {
+      closeDialog();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().isNotEmpty
+                ? error.toString()
+                : 'Không thể mở màn hình thanh toán. Vui lòng thử lại.',
+          ),
+        ),
+      );
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final totalText = currency.format(presenter.effectiveTotal);
@@ -577,7 +684,7 @@ class _CartSummaryBar extends StatelessWidget {
               ),
             ),
             ElevatedButton(
-              onPressed: presenter.selectedItems.isEmpty ? null : () {},
+              onPressed: presenter.selectedItems.isEmpty ? null : () => _startCheckout(context),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 36,

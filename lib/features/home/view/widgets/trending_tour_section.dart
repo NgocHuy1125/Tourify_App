@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import 'package:tourify_app/features/home/view/widgets/section_header.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 
 class TrendingTourSection extends StatelessWidget {
-  final List<TourSummary> tours;
   const TrendingTourSection({super.key, required this.tours});
+
+  final List<TourSummary> tours;
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +34,9 @@ class TrendingTourSection extends StatelessWidget {
 }
 
 class _TrendingCard extends StatelessWidget {
-  final TourSummary tour;
   const _TrendingCard({required this.tour});
+
+  final TourSummary tour;
 
   @override
   Widget build(BuildContext context) {
@@ -42,23 +45,27 @@ class _TrendingCard extends StatelessWidget {
       symbol: '₫',
       decimalDigits: 0,
     );
+
     final destination =
-        tour.destination.isNotEmpty ? tour.destination : 'Điểm đến khác';
-    final bool hasPrice = tour.priceFrom > 0;
+        tour.destination.isNotEmpty
+            ? tour.destination
+            : 'Địa điểm chưa xác định';
+    final hasPrice = tour.displayPrice > 0;
+    final hasDiscount = tour.displayPrice < tour.priceFrom;
     final priceText =
-        hasPrice ? formatter.format(tour.priceFrom) : 'Giá đang cập nhật';
+        hasPrice ? formatter.format(tour.displayPrice) : 'Giá đang cập nhật';
     final bookings = tour.bookingsCount;
 
     return Container(
       width: 220,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -70,19 +77,21 @@ class _TrendingCard extends StatelessWidget {
             aspectRatio: 16 / 9,
             child: Image.network(
               tour.mediaCover ??
-                  'https://via.placeholder.com/240x135.png?text=Tour',
+                  'https://via.placeholder.com/320x180.png?text=Tour',
               fit: BoxFit.cover,
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   destination,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -91,9 +100,9 @@ class _TrendingCard extends StatelessWidget {
                   tour.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -105,28 +114,57 @@ class _TrendingCard extends StatelessWidget {
                         size: 16,
                         color: Colors.orange,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          '$bookings lượt đặt',
+                          '$bookings đã đặt',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.orange,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(
+                            color: Colors.orange[700],
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ],
                   ),
-                const SizedBox(height: 10),
-                Text(
-                  hasPrice ? 'Từ $priceText' : priceText,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                const SizedBox(height: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasPrice ? 'Từ $priceText' : priceText,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    if (hasDiscount)
+                      Text(
+                        formatter.format(tour.priceFrom),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                    if (tour.hasAutoPromotion)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          tour.autoPromotion?.description ??
+                              'Giảm ${formatter.format(tour.autoPromotion!.discountAmount)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFFFF5B00),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),

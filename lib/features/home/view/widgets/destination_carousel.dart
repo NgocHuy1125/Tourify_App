@@ -1,35 +1,23 @@
 import 'package:flutter/material.dart';
+
+import 'package:tourify_app/features/home/model/home_models.dart';
+
 import 'section_header.dart';
 
 class DestinationCarousel extends StatelessWidget {
+  const DestinationCarousel({
+    super.key,
+    required this.title,
+    required this.destinations,
+    this.isLoading = false,
+  });
+
   final String title;
-  const DestinationCarousel({super.key, required this.title});
+  final List<DestinationHighlight> destinations;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final destinations = [
-      {
-        'name': 'TP. HCM',
-        'image':
-            'https://res.klook.com/image/upload/fl_lossy.progressive,w_96,h_96,c_fill,q_85/cities/gagpmpohflexp1kfy9vr.webp',
-      },
-      {
-        'name': 'Đà Nẵng',
-        'image':
-            'https://res.klook.com/image/upload/fl_lossy.progressive,w_96,h_96,c_fill,q_85/cities/rxqumcihtzatvhcnbedi.webp',
-      },
-      {
-        'name': 'Hà Nội',
-        'image':
-            'https://res.klook.com/image/upload/fl_lossy.progressive,w_96,h_96,c_fill,q_85/cities/ysnkhkzabobjbg72x3sz.webp',
-      },
-      {
-        'name': 'Phú Quốc',
-        'image':
-            'https://res.klook.com/image/upload/fl_lossy.progressive,w_96,h_96,c_fill,q_85/cities/fdopxuk1tinxvtylpax8.webp',
-      },
-    ];
-
     return Column(
       children: [
         SectionHeader(
@@ -38,20 +26,29 @@ class DestinationCarousel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 100,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemBuilder: (context, index) {
-              final dest = destinations[index];
-              return _DestinationPill(
-                name: dest['name']!,
-                imageUrl: dest['image']!,
-              );
-            },
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemCount: destinations.length,
-          ),
+          height: 102,
+          child:
+              isLoading && destinations.isEmpty
+                  ? const _DestinationSkeleton()
+                  : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemBuilder: (context, index) {
+                      if (destinations.isEmpty) {
+                        return const _DestinationPill(
+                          name: 'Đang cập nhật',
+                          imageUrl: '',
+                        );
+                      }
+                      final dest = destinations[index];
+                      return _DestinationPill(
+                        name: dest.name,
+                        imageUrl: dest.imageUrl,
+                      );
+                    },
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemCount: destinations.isEmpty ? 6 : destinations.length,
+                  ),
         ),
       ],
     );
@@ -59,24 +56,24 @@ class DestinationCarousel extends StatelessWidget {
 }
 
 class _DestinationPill extends StatelessWidget {
+  const _DestinationPill({required this.name, required this.imageUrl});
+
   final String name;
   final String imageUrl;
-
-  const _DestinationPill({required this.name, required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => debugPrint('Chọn điểm đến: $name'),
       child: Container(
-        width: 140,
+        width: 150,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 3),
             ),
@@ -86,23 +83,29 @@ class _DestinationPill extends StatelessWidget {
         child: Row(
           children: [
             ClipOval(
-              child: Image.network(
-                imageUrl,
-                width: 56,
-                height: 56,
-                fit: BoxFit.cover,
-                errorBuilder:
-                    (_, __, ___) => Container(
-                      width: 56,
-                      height: 56,
-                      color: Colors.grey.shade200,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.image_not_supported,
-                        color: Colors.grey,
+              child:
+                  imageUrl.isEmpty
+                      ? Container(
+                        width: 56,
+                        height: 56,
+                        color: Colors.grey.shade200,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.image_outlined),
+                      )
+                      : Image.network(
+                        imageUrl,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => Container(
+                              width: 56,
+                              height: 56,
+                              color: Colors.grey.shade200,
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.image_not_supported),
+                            ),
                       ),
-                    ),
-              ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -116,6 +119,52 @@ class _DestinationPill extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DestinationSkeleton extends StatelessWidget {
+  const _DestinationSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemBuilder:
+          (_, __) => Container(
+            width: 150,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      separatorBuilder: (_, __) => const SizedBox(width: 12),
+      itemCount: 6,
     );
   }
 }

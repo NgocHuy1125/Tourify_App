@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
 import 'package:tourify_app/features/cart/view/cart_screen.dart';
 import 'package:tourify_app/features/search/view/search_screen.dart';
+import 'package:tourify_app/features/notifications/presenter/notification_presenter.dart';
+import 'package:tourify_app/features/notifications/view/notification_center_screen.dart';
 
 class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
   const HomeHeaderSearch({super.key});
@@ -20,9 +23,10 @@ class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
         ),
         child: TextField(
           readOnly: true,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const SearchScreen()),
-          ),
+          onTap:
+              () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
           decoration: const InputDecoration(
             hintText: 'Tìm điểm đến, tour...',
             prefixIcon: Icon(Icons.search, color: Colors.grey),
@@ -79,9 +83,50 @@ class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
             );
           },
         ),
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.notifications_outlined, color: Colors.black54),
+        Consumer<NotificationPresenter>(
+          builder: (_, presenter, __) {
+            final count = presenter.unreadCount;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  onPressed:
+                      () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationCenterScreen(),
+                        ),
+                      ),
+                  icon: const Icon(
+                    Icons.notifications_outlined,
+                    color: Colors.black54,
+                  ),
+                ),
+                if (count > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE53935),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        count > 9 ? '9+' : count.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/wishlist/model/wishlist_model.dart';
@@ -70,10 +70,13 @@ class _WishlistScreenState extends State<WishlistScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Color.fromARGB(255, 255, 91, 0)),
         title: const Text(
           'Yêu thích',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: Color.fromARGB(255, 255, 91, 0),
+            fontWeight: FontWeight.w700,
+          ),
         ),
         centerTitle: false,
         actions:

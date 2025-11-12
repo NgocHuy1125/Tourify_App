@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'features/account/view/account_screen.dart';
+import 'features/booking/view/trips_screen.dart';
 import 'features/cart/presenter/cart_presenter.dart';
 import 'features/home/view/home_screen.dart';
 import 'features/home/view/promotions_list_screen.dart';
@@ -17,12 +19,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  late final List<Widget> _pages = <Widget>[
-    const HomeScreen(),
-    const WishlistScreen(),
-    const PromotionsListScreen(),
-    const Center(child: Text('Lịch sử chuyến đi đang phát triển')),
-    const AccountScreen(),
+  late final List<Widget> _pages = const [
+    HomeScreen(),
+    WishlistScreen(),
+    PromotionsListScreen(),
+    TripsScreen(),
+    AccountScreen(),
   ];
 
   @override
@@ -42,10 +44,6 @@ class _MainScreenState extends State<MainScreen> {
     switch (_selectedIndex) {
       case 0:
         return const HomeHeaderSearch();
-      case 1:
-        return null;
-      case 2:
-        return null;
       case 3:
         return AppBar(title: const Text('Chuyến đi của tôi'));
       case 4:

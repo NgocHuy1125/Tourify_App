@@ -4,7 +4,10 @@ class Tour {
   final String destination;
   final int durationDays;
   final num priceFrom;
+  final num? priceAfterDiscount;
   final num? ratingAvg;
+
+  num get displayPrice => priceAfterDiscount ?? priceFrom;
 
   const Tour({
     required this.id,
@@ -12,6 +15,7 @@ class Tour {
     required this.destination,
     required this.durationDays,
     required this.priceFrom,
+    this.priceAfterDiscount,
     this.ratingAvg,
   });
 }

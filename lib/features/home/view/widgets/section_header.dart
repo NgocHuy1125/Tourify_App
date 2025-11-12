@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class SectionHeader extends StatelessWidget {
+  const SectionHeader({super.key, required this.title, this.onSeeMore});
+
   final String title;
   final VoidCallback? onSeeMore;
-
-  const SectionHeader({super.key, required this.title, this.onSeeMore});
 
   @override
   Widget build(BuildContext context) {

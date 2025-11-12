@@ -192,13 +192,38 @@ class WishTourGridCard extends StatelessWidget {
                                 color: Colors.black54,
                               ),
                             ),
-                          Text(
-                            currency.format(tour.priceFrom),
-                            style: TextStyle(
-                              color: accent,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currency.format(tour.displayPrice),
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              if (tour.displayPrice < tour.priceFrom)
+                                Text(
+                                  currency.format(tour.priceFrom),
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              if (tour.hasAutoPromotion)
+                                Text(
+                                  tour.autoPromotion?.description ??
+                                      'Giảm ${currency.format(tour.autoPromotion!.discountAmount)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFFFF5B00),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),

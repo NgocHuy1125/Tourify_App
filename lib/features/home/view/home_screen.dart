@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:tourify_app/features/home/presenter/home_presenter.dart';
+import 'package:tourify_app/features/notifications/presenter/notification_presenter.dart';
 
 import 'widgets/category_section.dart';
 import 'widgets/destination_carousel.dart';
+import 'widgets/chatbot_launcher.dart';
+import 'widgets/personalized_recommendation_section.dart';
 import 'widgets/promotions_section.dart';
+import 'widgets/recent_tours_section.dart';
 import 'widgets/suggestion_tab_section.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (presenter.tours.isEmpty) {
         presenter.fetchHome();
       }
+      context.read<NotificationPresenter>().refreshUnreadCount();
     });
   }
 
@@ -30,23 +36,50 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final presenter = context.watch<HomePresenter>();
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: presenter.fetchHome,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CategorySection(),
+            CategorySection(
+              categories: presenter.categories,
+              isLoading: presenter.state == HomeState.loading,
+            ),
             PromotionsSection(promotions: presenter.promotions),
             const SizedBox(height: 16),
-            const DestinationCarousel(title: 'Bạn muốn đi đâu chơi?'),
+            DestinationCarousel(
+              title: 'Bạn muốn đi đâu chơi?',
+              destinations: presenter.destinations,
+              isLoading: presenter.state == HomeState.loading,
+            ),
+            const SizedBox(height: 24),
+            RecentToursSection(
+              items: presenter.recentTours,
+              isLoading: presenter.recentToursLoading,
+              message: presenter.recentToursMessage,
+            ),
             const SizedBox(height: 24),
             SuggestionTabSection(presenter: presenter),
+            const SizedBox(height: 24),
+            PersonalizedRecommendationSection(presenter: presenter),
             const SizedBox(height: 24),
           ],
         ),
       ),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        content,
+        const Positioned(
+          right: 16,
+          bottom: 16,
+          child: ChatbotLauncher(),
+        ),
+      ],
     );
   }
 }

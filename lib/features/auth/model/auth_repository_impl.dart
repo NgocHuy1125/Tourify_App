@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:tourify_app/core/api/http_client.dart';
@@ -21,12 +21,17 @@ class AuthRepositoryImpl implements AuthRepository {
         throw const FormatException('Empty body');
       }
       final errorData = json.decode(body);
-      final message = (errorData is Map)
-          ? (errorData['message'] ?? errorData['error'] ?? errorData['errors'])
-          : errorData;
+      final message =
+          (errorData is Map)
+              ? (errorData['message'] ??
+                  errorData['error'] ??
+                  errorData['errors'])
+              : errorData;
       throw Exception(message?.toString() ?? 'Có lỗi xảy ra.');
     } catch (_) {
-      throw Exception('Lỗi máy chủ: ${response.statusCode}. Body: ${body.isEmpty ? 'no-body' : body}');
+      throw Exception(
+        'Lỗi máy chủ: ${response.statusCode}. Body: ${body.isEmpty ? 'no-body' : body}',
+      );
     }
   }
 
@@ -51,9 +56,10 @@ class AuthRepositoryImpl implements AuthRepository {
       final data = json.decode(response.body);
       final token = (data['access_token'] ?? '').toString();
       if (token.isNotEmpty) await _storageService.saveToken(token);
-      final user = (data['user'] is Map)
-          ? (data['user'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
+      final user =
+          (data['user'] is Map)
+              ? (data['user'] as Map).cast<String, dynamic>()
+              : <String, dynamic>{};
       return AuthResponse(accessToken: token, user: user);
     }
     _handleErrorResponse(response);
@@ -65,9 +71,10 @@ class AuthRepositoryImpl implements AuthRepository {
     required String identifier,
     required String password,
   }) async {
-    final body = identifier.contains('@')
-        ? {'email': identifier, 'password': password}
-        : {'phone': identifier, 'password': password};
+    final body =
+        identifier.contains('@')
+            ? {'email': identifier, 'password': password}
+            : {'phone': identifier, 'password': password};
     final response = await _httpClient.post(
       '/api/login',
       body: body,
@@ -81,9 +88,10 @@ class AuthRepositoryImpl implements AuthRepository {
         throw Exception('Phản hồi không chứa access_token.');
       }
       await _storageService.saveToken(token);
-      final user = (data['user'] is Map)
-          ? (data['user'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
+      final user =
+          (data['user'] is Map)
+              ? (data['user'] as Map).cast<String, dynamic>()
+              : <String, dynamic>{};
       return AuthResponse(accessToken: token, user: user);
     }
     _handleErrorResponse(response);
@@ -94,7 +102,8 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> signOut() async {
     try {
       await _httpClient.post('/api/logout');
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       await _storageService.deleteToken();
     }
   }
@@ -148,9 +157,10 @@ class AuthRepositoryImpl implements AuthRepository {
         throw Exception('Phản hồi không chứa access_token.');
       }
       await _storageService.saveToken(token);
-      final user = (data['user'] is Map)
-          ? (data['user'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
+      final user =
+          (data['user'] is Map)
+              ? (data['user'] as Map).cast<String, dynamic>()
+              : <String, dynamic>{};
       return AuthResponse(accessToken: token, user: user);
     }
     _handleErrorResponse(response);

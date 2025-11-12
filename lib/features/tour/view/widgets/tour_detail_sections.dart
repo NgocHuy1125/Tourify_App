@@ -11,10 +11,7 @@ class SectionAnchor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      child: child,
-    );
+    return Container(margin: const EdgeInsets.only(top: 12), child: child);
   }
 }
 
@@ -35,10 +32,7 @@ class SectionTitle extends StatelessWidget {
         ),
         if (description.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(
-            description,
-            style: const TextStyle(color: Colors.black54),
-          ),
+          Text(description, style: const TextStyle(color: Colors.black54)),
         ],
       ],
     );
@@ -112,8 +106,8 @@ class _ScheduleChip extends StatelessWidget {
         seats >= total
             ? 'Còn nhiều chỗ'
             : seats > 0
-                ? 'Còn $seats/$total chỗ'
-                : 'Hết chỗ';
+            ? 'Còn $seats/$total chỗ'
+            : 'Hết chỗ';
     return Container(
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -153,6 +147,19 @@ class _PackageCard extends StatelessWidget {
       decimalDigits: 0,
     );
     final scheduleCount = schedules.length;
+    final discountFactor = detail.autoPromotionFactor;
+    final hasDiscount = discountFactor < 0.999;
+
+    double applyDiscount(double price) {
+      if (!hasDiscount) return price;
+      return (price * discountFactor).clamp(0, price);
+    }
+
+    final adultPrice = package.adultPrice;
+    final adultDiscounted = applyDiscount(adultPrice);
+    final childPrice = package.childPrice;
+    final double? childDiscounted =
+        childPrice != null ? applyDiscount(childPrice) : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -206,17 +213,34 @@ class _PackageCard extends StatelessWidget {
           const SizedBox(height: 12),
           _PackageSummaryRow(
             label: 'Giá người lớn',
-            value: currency.format(package.adultPrice),
+            value: currency.format(adultDiscounted),
+            oldValue: hasDiscount ? currency.format(adultPrice) : null,
           ),
           if (package.childPrice != null)
             _PackageSummaryRow(
               label: 'Giá trẻ em',
-              value: currency.format(package.childPrice),
+              value: currency.format(childDiscounted),
+              oldValue:
+                  hasDiscount && childPrice != null
+                      ? currency.format(childPrice)
+                      : null,
             ),
           if (detail.childAgeLimit != null)
             _PackageSummaryRow(
               label: 'Áp dụng cho trẻ em',
               value: '≤ ${detail.childAgeLimit} tuổi',
+            ),
+          if (hasDiscount && detail.autoPromotion != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                detail.autoPromotion?.description ??
+                    'Đã bao gồm ưu đãi ${detail.autoPromotion!.code}',
+                style: const TextStyle(
+                  color: Color(0xFFFF5B00),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           const SizedBox(height: 12),
           Row(
@@ -249,18 +273,19 @@ class _PackageCard extends StatelessWidget {
                   onPressed: () {
                     showDialog<void>(
                       context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Điều khoản gói dịch vụ'),
-                        content: SingleChildScrollView(
-                          child: Text(detail.policy),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Đóng'),
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text('Điều khoản gói dịch vụ'),
+                            content: SingleChildScrollView(
+                              child: Text(detail.policy),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Đóng'),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
                     );
                   },
                   child: const Text('Xem điều khoản'),
@@ -276,8 +301,13 @@ class _PackageCard extends StatelessWidget {
 class _PackageSummaryRow extends StatelessWidget {
   final String label;
   final String value;
+  final String? oldValue;
 
-  const _PackageSummaryRow({required this.label, required this.value});
+  const _PackageSummaryRow({
+    required this.label,
+    required this.value,
+    this.oldValue,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -287,10 +317,7 @@ class _PackageSummaryRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 140,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.black54),
-            ),
+            child: Text(label, style: const TextStyle(color: Colors.black54)),
           ),
           Expanded(
             child: Text(
@@ -301,6 +328,17 @@ class _PackageSummaryRow extends StatelessWidget {
               ),
             ),
           ),
+          if (oldValue != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                oldValue!,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -375,9 +413,10 @@ class ReviewSection extends StatelessWidget {
             )
           else
             Column(
-              children: reviews.reviews
-                  .map((review) => _ReviewTile(review: review))
-                  .toList(),
+              children:
+                  reviews.reviews
+                      .map((review) => _ReviewTile(review: review))
+                      .toList(),
             ),
         ],
       ),
@@ -395,6 +434,8 @@ class _ReviewTile extends StatelessWidget {
         review.createdAt != null
             ? DateFormat('dd/MM/yyyy').format(review.createdAt!)
             : 'Không rõ ngày';
+    final scheduleDisplay = review.scheduleText;
+    final scheduleText = _formatScheduleDate(scheduleDisplay);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -429,10 +470,10 @@ class _ReviewTile extends StatelessWidget {
             'Ngày đánh giá: $date',
             style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
-          if (review.scheduleText != null) ...[
+          if (scheduleText != null) ...[
             const SizedBox(height: 4),
             Text(
-              'Lịch khởi hành: ${review.scheduleText}',
+              'Lịch khởi hành: $scheduleText',
               style: const TextStyle(color: Colors.black54, fontSize: 12),
             ),
           ],
@@ -447,6 +488,15 @@ class _ReviewTile extends StatelessWidget {
       ),
     );
   }
+
+  String? _formatScheduleDate(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed != null) {
+      return DateFormat('dd/MM/yyyy').format(parsed);
+    }
+    return raw;
+  }
 }
 
 class AboutSection extends StatelessWidget {
@@ -458,9 +508,10 @@ class AboutSection extends StatelessWidget {
     final badges = <Widget>[
       _InfoBadge(
         icon: Icons.public,
-        label: detail.type.toLowerCase() == 'international'
-            ? 'Tour quốc tế'
-            : 'Tour trong nước',
+        label:
+            detail.type.toLowerCase() == 'international'
+                ? 'Tour quốc tế'
+                : 'Tour trong nước',
         color:
             detail.type.toLowerCase() == 'international'
                 ? Colors.blueAccent
@@ -477,10 +528,7 @@ class AboutSection extends StatelessWidget {
     }
     if (detail.requiresPassport) {
       badges.add(
-        const _InfoBadge(
-          icon: Icons.badge_outlined,
-          label: 'Yêu cầu hộ chiếu',
-        ),
+        const _InfoBadge(icon: Icons.badge_outlined, label: 'Yêu cầu hộ chiếu'),
       );
     }
     if (detail.requiresVisa) {
@@ -506,11 +554,7 @@ class AboutSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (badges.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: badges,
-            ),
+            Wrap(spacing: 8, runSpacing: 8, children: badges),
           if (detail.description.isNotEmpty) ...[
             const SizedBox(height: 16),
             const Text(
@@ -615,11 +659,7 @@ class _CancellationPolicyTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headers = [
-      'Thời hạn thông báo',
-      'Tỷ lệ hoàn tiền',
-      'Ghi chú',
-    ];
+    final headers = ['Thời hạn thông báo', 'Tỷ lệ hoàn tiền', 'Ghi chú'];
     return Table(
       columnWidths: const {
         0: FlexColumnWidth(1.4),
@@ -630,23 +670,24 @@ class _CancellationPolicyTable extends StatelessWidget {
       children: [
         TableRow(
           decoration: const BoxDecoration(color: Color(0xFFFFF4EC)),
-          children: headers
-              .map(
-                (header) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  child: Text(
-                    header,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
+          children:
+              headers
+                  .map(
+                    (header) => Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Text(
+                        header,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              )
-              .toList(),
+                  )
+                  .toList(),
         ),
         ...policies.map((policy) {
           return TableRow(
@@ -688,10 +729,7 @@ class _TableCellText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Text(
-        value,
-        style: const TextStyle(fontSize: 12, height: 1.4),
-      ),
+      child: Text(value, style: const TextStyle(fontSize: 12, height: 1.4)),
     );
   }
 }
@@ -734,7 +772,8 @@ class SuggestionSection extends StatelessWidget {
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  tour.mediaCover ?? 'https://via.placeholder.com/96x72?text=Tour',
+                  tour.mediaCover ??
+                      'https://via.placeholder.com/96x72?text=Tour',
                   width: 72,
                   height: 72,
                   fit: BoxFit.cover,
@@ -778,9 +817,10 @@ class SuggestionSection extends StatelessWidget {
                               ? 'Quốc tế'
                               : 'Trong nước',
                           style: TextStyle(
-                            color: tour.type.toLowerCase() == 'international'
-                                ? Colors.blueAccent
-                                : const Color(0xFFFF5B00),
+                            color:
+                                tour.type.toLowerCase() == 'international'
+                                    ? Colors.blueAccent
+                                    : const Color(0xFFFF5B00),
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -788,12 +828,21 @@ class SuggestionSection extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        currency.format(tour.priceFrom),
+                        currency.format(tour.displayPrice),
                         style: const TextStyle(
                           color: Color(0xFFFF5B00),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      if (tour.displayPrice < tour.priceFrom)
+                        Text(
+                          currency.format(tour.priceFrom),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            decoration: TextDecoration.lineThrough,
+                            fontSize: 12,
+                          ),
+                        ),
                     ],
                   ),
                 ],

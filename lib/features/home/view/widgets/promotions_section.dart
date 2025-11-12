@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import 'package:tourify_app/features/home/model/home_models.dart';
 import 'package:tourify_app/features/home/view/promotions_list_screen.dart';
 
 class PromotionsSection extends StatelessWidget {
-  final List<PromotionItem> promotions;
   const PromotionsSection({super.key, required this.promotions});
+
+  final List<PromotionItem> promotions;
 
   @override
   Widget build(BuildContext context) {
@@ -15,11 +17,10 @@ class PromotionsSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Ưu đãi cho bạn',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            'Ưu đãi dành cho bạn',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 12),
@@ -27,21 +28,22 @@ class PromotionsSection extends StatelessWidget {
           height: 140,
           child:
               promotions.isEmpty
-                  ? const Center(child: Text('Hiện chưa có ưu đãi'))
+                  ? const Center(child: Text('Hiện không có ưu đãi nào'))
                   : ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (context, index) => _PromotionCard(
-                      item: promotions[index],
-                      index: index,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const PromotionsListScreen(),
-                          ),
-                        );
-                      },
-                    ),
+                    itemBuilder:
+                        (context, index) => _PromotionCard(
+                          item: promotions[index],
+                          index: index,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const PromotionsListScreen(),
+                              ),
+                            );
+                          },
+                        ),
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemCount: promotions.length,
                   ),
@@ -52,14 +54,15 @@ class PromotionsSection extends StatelessWidget {
 }
 
 class _PromotionCard extends StatelessWidget {
-  final PromotionItem item;
-  final int index;
-  final VoidCallback onTap;
   const _PromotionCard({
     required this.item,
     required this.index,
     required this.onTap,
   });
+
+  final PromotionItem item;
+  final int index;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +75,7 @@ class _PromotionCard extends StatelessWidget {
 
     final currency = NumberFormat.currency(
       locale: 'vi_VN',
-      symbol: '\u20AB',
+      symbol: '₫',
       decimalDigits: 0,
     );
     final type = item.discountType.toLowerCase();
@@ -100,7 +103,7 @@ class _PromotionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -123,7 +126,7 @@ class _PromotionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: const Row(

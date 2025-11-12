@@ -87,8 +87,9 @@ class MyApp extends StatelessWidget {
         iconTheme: const IconThemeData(color: _brand),
       ),
       home: Consumer<AuthNotifier>(
-        builder: (_, auth, __) =>
-            auth.isLoggedIn ? const MainScreen() : const AuthScreen(),
+        builder:
+            (_, auth, __) =>
+                auth.isLoggedIn ? const MainScreen() : const AuthScreen(),
       ),
     );
   }

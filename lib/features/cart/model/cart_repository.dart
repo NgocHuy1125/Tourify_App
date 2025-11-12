@@ -1,4 +1,4 @@
-import 'package:tourify_app/features/cart/model/cart_model.dart';
+﻿import 'package:tourify_app/features/cart/model/cart_model.dart';
 
 abstract class CartRepository {
   Future<CartData> fetchCart();

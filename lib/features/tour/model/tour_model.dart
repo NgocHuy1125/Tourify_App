@@ -7,9 +7,9 @@ String? _normalizeMediaUrl(dynamic value) {
   if (str.startsWith('http')) return str;
   if (str.startsWith('//')) return 'https:$str';
 
-  final base = Uri.parse(_tourBaseHost.endsWith('/')
-      ? _tourBaseHost
-      : '$_tourBaseHost/');
+  final base = Uri.parse(
+    _tourBaseHost.endsWith('/') ? _tourBaseHost : '$_tourBaseHost/',
+  );
   final resolved = base.resolve(str.startsWith('/') ? str.substring(1) : str);
   return resolved.toString();
 }
@@ -20,6 +20,7 @@ class TourSummary {
   final String destination;
   final int duration;
   final double priceFrom;
+  final double priceAfterDiscount;
   final double? ratingAvg;
   final int reviewsCount;
   final String? mediaCover;
@@ -29,6 +30,7 @@ class TourSummary {
   final int? childAgeLimit;
   final bool requiresPassport;
   final bool requiresVisa;
+  final AutoPromotion? autoPromotion;
 
   TourSummary({
     required this.id,
@@ -36,6 +38,7 @@ class TourSummary {
     required this.destination,
     required this.duration,
     required this.priceFrom,
+    double? priceAfterDiscount,
     this.ratingAvg,
     this.reviewsCount = 0,
     this.mediaCover,
@@ -45,7 +48,12 @@ class TourSummary {
     this.childAgeLimit,
     this.requiresPassport = false,
     this.requiresVisa = false,
-  });
+    this.autoPromotion,
+  }) : priceAfterDiscount = priceAfterDiscount ?? priceFrom;
+
+  double get displayPrice => priceAfterDiscount;
+  bool get hasAutoPromotion =>
+      autoPromotion != null && autoPromotion!.discountAmount > 0;
 
   factory TourSummary.fromJson(Map<String, dynamic> json) {
     final map = Map<String, dynamic>.from(json);
@@ -87,6 +95,13 @@ class TourSummary {
     final reviewsCandidate =
         map['reviews_count'] ?? map['rating_count'] ?? map['review_count'];
 
+    final autoPromotion =
+        map['auto_promotion'] is Map
+            ? AutoPromotion.fromJson(
+              Map<String, dynamic>.from(map['auto_promotion'] as Map),
+            )
+            : null;
+
     return TourSummary(
       id: (map['id'] ?? map['uuid'] ?? map['slug'] ?? '').toString(),
       title: (map['title'] ?? map['name'] ?? 'Tour').toString(),
@@ -96,6 +111,13 @@ class TourSummary {
       duration: parseInt(map['duration'] ?? map['duration_days'] ?? 0),
       priceFrom: parseDouble(
         map['priceFrom'] ?? map['base_price'] ?? map['season_price'] ?? 0,
+      ),
+      priceAfterDiscount: parseDouble(
+        map['price_after_discount'] ??
+            map['priceFrom'] ??
+            map['base_price'] ??
+            map['season_price'] ??
+            0,
       ),
       mediaCover: cover ?? 'https://via.placeholder.com/400x300?text=Tour',
       ratingAvg: ratingCandidate != null ? parseDouble(ratingCandidate) : null,
@@ -113,6 +135,7 @@ class TourSummary {
               : parseInt(map['child_age_limit']),
       requiresPassport: map['requires_passport'] == true,
       requiresVisa: map['requires_visa'] == true,
+      autoPromotion: autoPromotion,
     );
   }
 }
@@ -221,6 +244,8 @@ class TourDetail {
   final bool requiresPassport;
   final bool requiresVisa;
   final List<TourCancellationPolicy> cancellationPolicies;
+  final double? priceAfterDiscount;
+  final AutoPromotion? autoPromotion;
 
   TourDetail({
     required this.id,
@@ -244,6 +269,8 @@ class TourDetail {
     this.requiresPassport = false,
     this.requiresVisa = false,
     this.cancellationPolicies = const [],
+    this.priceAfterDiscount,
+    this.autoPromotion,
   });
 
   factory TourDetail.fromJson(Map<String, dynamic> json) {
@@ -314,14 +341,20 @@ class TourDetail {
     final requiresVisa = json['requires_visa'] == true;
     final cancellationPolicies =
         (json['cancellation_policies'] as List?)
-                ?.whereType<Map>()
-                .map(
-                  (e) => TourCancellationPolicy.fromJson(
-                    Map<String, dynamic>.from(e),
-                  ),
-                )
-                .toList() ??
-            const [];
+            ?.whereType<Map>()
+            .map(
+              (e) =>
+                  TourCancellationPolicy.fromJson(Map<String, dynamic>.from(e)),
+            )
+            .toList() ??
+        const [];
+
+    final autoPromotion =
+        json['auto_promotion'] is Map
+            ? AutoPromotion.fromJson(
+              Map<String, dynamic>.from(json['auto_promotion'] as Map),
+            )
+            : null;
 
     return TourDetail(
       id: json['id']?.toString() ?? '',
@@ -346,31 +379,19 @@ class TourDetail {
       schedules:
           (json['schedules'] as List?)
               ?.whereType<Map>()
-              .map(
-                (e) => TourSchedule.fromJson(
-                  Map<String, dynamic>.from(e),
-                ),
-              )
+              .map((e) => TourSchedule.fromJson(Map<String, dynamic>.from(e)))
               .toList() ??
           const [],
       reviews:
           (json['reviews'] as List?)
               ?.whereType<Map>()
-              .map(
-                (e) => ReviewItem.fromJson(
-                  Map<String, dynamic>.from(e),
-                ),
-              )
+              .map((e) => ReviewItem.fromJson(Map<String, dynamic>.from(e)))
               .toList() ??
           const [],
       packages:
           (json['packages'] as List?)
               ?.whereType<Map>()
-              .map(
-                (e) => TourPackage.fromJson(
-                  Map<String, dynamic>.from(e),
-                ),
-              )
+              .map((e) => TourPackage.fromJson(Map<String, dynamic>.from(e)))
               .toList() ??
           const [],
       type: type.isNotEmpty ? type : 'domestic',
@@ -378,6 +399,90 @@ class TourDetail {
       requiresPassport: requiresPassport,
       requiresVisa: requiresVisa,
       cancellationPolicies: cancellationPolicies,
+      priceAfterDiscount:
+          json['price_after_discount'] is num
+              ? (json['price_after_discount'] as num).toDouble()
+              : double.tryParse(
+                json['price_after_discount']?.toString() ?? '',
+              ),
+      autoPromotion: autoPromotion,
+    );
+  }
+
+  TourSummary toSummary() {
+    return TourSummary(
+      id: id,
+      title: title,
+      destination: destination,
+      duration: duration,
+      priceFrom: basePrice,
+      priceAfterDiscount: priceAfterDiscount ?? basePrice,
+      ratingAvg: ratingAvg,
+      reviewsCount: reviewsCount,
+      mediaCover: media.isNotEmpty ? media.first : null,
+      tags: tags,
+      bookingsCount: bookingsCount,
+      type: type,
+      childAgeLimit: childAgeLimit,
+      requiresPassport: requiresPassport,
+      requiresVisa: requiresVisa,
+      autoPromotion: autoPromotion,
+    );
+  }
+
+  double get autoPromotionFactor {
+    if (basePrice <= 0 || priceAfterDiscount == null) {
+      return 1;
+    }
+    final factor = priceAfterDiscount! / basePrice;
+    return factor.clamp(0, 1);
+  }
+}
+
+class AutoPromotion {
+  AutoPromotion({
+    required this.id,
+    required this.code,
+    required this.discountType,
+    required this.value,
+    required this.discountAmount,
+    this.description,
+    this.validFrom,
+    this.validTo,
+  });
+
+  final String id;
+  final String code;
+  final String discountType;
+  final double value;
+  final double discountAmount;
+  final String? description;
+  final DateTime? validFrom;
+  final DateTime? validTo;
+
+  factory AutoPromotion.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      return DateTime.tryParse(value.toString());
+    }
+
+    return AutoPromotion(
+      id: json['id']?.toString() ?? '',
+      code: json['code']?.toString() ?? '',
+      discountType: json['discount_type']?.toString() ?? 'percent',
+      value: parseDouble(json['value']),
+      discountAmount: parseDouble(
+        json['discount_amount'] ?? json['amount'] ?? json['discount'],
+      ),
+      description: json['description']?.toString(),
+      validFrom: parseDate(json['valid_from']),
+      validTo: parseDate(json['valid_to']),
     );
   }
 }
@@ -465,15 +570,37 @@ class TourReview {
   });
 
   factory TourReview.fromJson(Map<String, dynamic> json) {
-    final user = json['user'] as Map?;
-    final schedule = json['tour_schedule'] as Map?;
+    Map<String, dynamic>? extractMap(dynamic source) {
+      if (source is Map<String, dynamic>) return source;
+      if (source is Map) return Map<String, dynamic>.from(source);
+      return null;
+    }
+
+    final user = extractMap(json['user']);
+    final booking = extractMap(json['booking']);
+    final schedule = extractMap(
+      json['tour_schedule'] ?? booking?['tour_schedule'],
+    );
+
+    String? buildScheduleText() {
+      if (schedule == null) return null;
+      final start = schedule['start_date'] ?? schedule['startDate'];
+      if (start is String && start.isNotEmpty) {
+        return start;
+      }
+      return null;
+    }
+
     return TourReview(
       id: json['id']?.toString() ?? '',
       rating: (json['rating'] as num? ?? 0).toInt(),
       comment: json['comment']?.toString() ?? '',
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-      userName: user?['name']?.toString() ?? 'Người dùng ẩn danh',
-      scheduleText: schedule?['start_date']?.toString(),
+      userName:
+          user?['name']?.toString() ??
+          user?['full_name']?.toString() ??
+          'Khách ẩn danh',
+      scheduleText: buildScheduleText(),
     );
   }
 }

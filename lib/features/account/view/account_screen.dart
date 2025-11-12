@@ -1,10 +1,14 @@
-﻿// lib/features/account/view/account_screen.dart
+// lib/features/account/view/account_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:tourify_app/features/account/presenter/account_presenter.dart';
 import 'package:tourify_app/features/account/view/account_settings_screen.dart';
+import 'package:tourify_app/features/account/view/feedback_screen.dart';
 import 'package:tourify_app/features/account/view/personal_info_screen.dart';
+import 'package:tourify_app/features/booking/presenter/trips_presenter.dart';
+import 'package:tourify_app/features/booking/view/trips_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -14,15 +18,12 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  // Dữ liệu mẫu - Sau này bạn sẽ lấy từ thông tin user thật
-  String _userName = 'Người dùng Tourify';
+  // Sample data - replace with real user data when API is integrated
+  String _userName = 'Ng\u01b0\u1eddi d\u00f9ng Tourify';
   final String _avatarUrl = '';
-  final String _level = 'Bạc';
+  final String _level = 'B\u1ea1c';
   final int _levelNumber = 1;
-  final String _rewardsInfo = '4 Quyền lợi | X1 Tourify Xu';
-  final int _vouchers = 0;
-  final int _points = 0;
-  final int _giftCards = 0;
+  final String _rewardsInfo = '4 Quy\u1ec1n l\u1ee3i | X1 Tourify Xu';
 
   @override
   void initState() {
@@ -34,13 +35,11 @@ class _AccountScreenState extends State<AccountScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Dùng watch để lắng nghe presenter và rebuild UI khi có thay đổi (ví dụ: loading)
     final presenter = context.watch<AccountPresenter>();
     final state = presenter.state;
 
-    // Xử lý các hành động một lần (side-effects) như hiển thị SnackBar lỗi
-    // Logic điều hướng khi đăng xuất thành công đã được GoRouter xử lý tự động
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (state == AccountState.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -48,7 +47,6 @@ class _AccountScreenState extends State<AccountScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        // Quan trọng: Reset lại trạng thái để SnackBar không hiện lại
         presenter.resetState();
       }
     });
@@ -59,16 +57,11 @@ class _AccountScreenState extends State<AccountScreen> {
       children: [
         Scaffold(
           backgroundColor: Colors.grey[100],
-          // Không cần AppBar vì chúng ta tự vẽ header
           body: SingleChildScrollView(
             child: Column(
               children: [
                 _buildHeader(),
-                const SizedBox(
-                  height: 110,
-                ), // Khoảng trống để các card không bị header che
-                _buildUserStatsCard(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 110),
                 _buildMainActionGroup(),
                 const SizedBox(height: 16),
                 _buildSecondaryActionGroup(),
@@ -79,10 +72,9 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           ),
         ),
-        // Hiển thị lớp loading overlay khi đang xử lý đăng xuất
         if (isLoading)
           Container(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(alpha: 0.5),
             child: const Center(
               child: CircularProgressIndicator(color: Colors.white),
             ),
@@ -91,8 +83,6 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // --- WIDGETS ---
-
   Widget _buildHeader() {
     return Stack(
       clipBehavior: Clip.none,
@@ -100,7 +90,7 @@ class _AccountScreenState extends State<AccountScreen> {
       children: [
         _buildHeaderBackground(),
         Positioned(
-          top: 45, // Căn chỉnh vị trí từ trên xuống
+          top: 45,
           left: 16,
           right: 16,
           child: Column(
@@ -120,31 +110,28 @@ class _AccountScreenState extends State<AccountScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: OutlinedButton(
         onPressed: () async {
-          // Hiển thị dialog xác nhận trước khi đăng xuất
-          final bool? didRequestSignOut = await showDialog<bool>(
+          final bool? didConfirm = await showDialog<bool>(
             context: context,
-            builder:
-                (BuildContext dialogContext) => AlertDialog(
-                  title: const Text('Xác nhận đăng xuất'),
-                  content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                      child: const Text('Hủy'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: const Text(
-                        'Đăng xuất',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('X\u00e1c nh\u1eadn \u0111\u0103ng xu\u1ea5t'),
+              content: const Text('B\u1ea1n c\u00f3 ch\u1eafc ch\u1eafn mu\u1ed1n \u0111\u0103ng xu\u1ea5t?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('H\u1ee7y'),
                 ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text(
+                    '\u0110\u0103ng xu\u1ea5t',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            ),
           );
 
-          // Chỉ gọi signOut nếu người dùng đã xác nhận
-          if (didRequestSignOut == true) {
+          if (didConfirm == true && mounted) {
             context.read<AccountPresenter>().signOut();
           }
         },
@@ -152,10 +139,12 @@ class _AccountScreenState extends State<AccountScreen> {
           backgroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 50),
           side: BorderSide(color: Colors.grey.shade300),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
         child: const Text(
-          'Đăng xuất',
+          '\u0110\u0103ng xu\u1ea5t',
           style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
         ),
       ),
@@ -183,13 +172,15 @@ class _AccountScreenState extends State<AccountScreen> {
     final presenter = context.watch<AccountPresenter>();
     final profile = presenter.profile;
     final name =
-        (profile?.name?.trim().isNotEmpty ?? false) ? profile!.name : _userName;
+        profile != null && profile.name.trim().isNotEmpty
+            ? profile.name
+            : _userName;
     final avatarUrl = profile?.avatarUrl ?? _avatarUrl;
 
     void openPersonalInfo() {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const PersonalInfoScreen()));
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PersonalInfoScreen()),
+      );
     }
 
     return GestureDetector(
@@ -201,10 +192,9 @@ class _AccountScreenState extends State<AccountScreen> {
             backgroundColor: Colors.grey.shade300,
             backgroundImage:
                 avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-            child:
-                avatarUrl.isEmpty
-                    ? const Icon(Icons.person, size: 30, color: Colors.white)
-                    : null,
+            child: avatarUrl.isEmpty
+                ? const Icon(Icons.person, size: 30, color: Colors.white)
+                : null,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -224,15 +214,15 @@ class _AccountScreenState extends State<AccountScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Cập nhật thông tin cá nhân',
+                      'C\u1eadp nh\u1eadt th\u00f4ng tin c\u00e1 nh\u00e2n',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 13,
                       ),
                     ),
                     Icon(
                       Icons.chevron_right,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       size: 16,
                     ),
                   ],
@@ -253,7 +243,7 @@ class _AccountScreenState extends State<AccountScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -303,7 +293,7 @@ class _AccountScreenState extends State<AccountScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Nhận phần thưởng',
+                  'Nh\u1eadn ph\u1ea7n th\u01b0\u1edfng',
                   style: TextStyle(
                     color: Color(0xFFFF5B00),
                     fontSize: 13,
@@ -319,52 +309,30 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Widget _buildUserStatsCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem(
-            icon: Icons.add,
-            label: 'Mã ưu đãi',
-            value: _vouchers.toString(),
+  Future<void> _openTrips({required bool completedOnly}) async {
+    final tripsPresenter = context.read<TripsPresenter>();
+    await tripsPresenter.selectFilter(completedOnly ? 'completed' : 'all');
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider<TripsPresenter>.value(
+          value: tripsPresenter,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(
+                completedOnly ? '\u0110\u00e1nh gi\u00e1' : '\u0110\u01a1n h\u00e0ng',
+              ),
+            ),
+            body: const TripsScreen(),
           ),
-          _buildStatItem(label: 'Tourify Xu', value: _points.toString()),
-          _buildStatItem(
-            label: 'Tourify Gift Card',
-            value: _giftCards.toString(),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatItem({
-    IconData? icon,
-    required String label,
-    required String value,
-  }) {
-    return Column(
-      children: [
-        if (icon != null)
-          Icon(icon, color: Colors.grey.shade600)
-        else
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-        ),
-      ],
+  void _openFeedback() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const FeedbackScreen()),
     );
   }
 
@@ -379,21 +347,15 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _ActionListTile(
             icon: Icons.receipt_long_outlined,
-            title: 'Đơn hàng',
-            onTap: () {},
+            title: '\u0110\u01a1n h\u00e0ng',
+            onTap: () => _openTrips(completedOnly: false),
           ),
           const Divider(height: 1, indent: 56),
           _ActionListTile(
-            icon: Icons.person_outline,
-            title: 'Thông tin thường dùng',
-            subtitle: 'Quản lý thông tin khách trên đơn hàng...',
-            onTap: () {},
-          ),
-          const Divider(height: 1, indent: 56),
-          _ActionListTile(
-            icon: Icons.chat_bubble_outline,
-            title: 'Đánh giá',
-            onTap: () {},
+            icon: Icons.rate_review_outlined,
+            title: '\u0110\u00e1nh gi\u00e1',
+            subtitle: 'Xem v\u00e0 c\u1eadp nh\u1eadt tour \u0111\u00e3 ho\u00e0n th\u00e0nh',
+            onTap: () => _openTrips(completedOnly: true),
           ),
         ],
       ),
@@ -411,19 +373,13 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _ActionListTile(
             icon: Icons.help_outline,
-            title: 'Trợ giúp',
-            onTap: () {},
-          ),
-          const Divider(height: 1, indent: 56),
-          _ActionListTile(
-            icon: Icons.star_outline,
-            title: 'Đánh giá ứng dụng',
-            onTap: () {},
+            title: 'Tr\u1ee3 gi\u00fap',
+            onTap: _openFeedback,
           ),
           const Divider(height: 1, indent: 56),
           _ActionListTile(
             icon: Icons.settings_outlined,
-            title: 'Cài đặt',
+            title: 'C\u00e0i \u0111\u1eb7t',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -439,17 +395,17 @@ class _AccountScreenState extends State<AccountScreen> {
 }
 
 class _ActionListTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback onTap;
-
   const _ActionListTile({
     required this.icon,
     required this.title,
     this.subtitle,
     required this.onTap,
   });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -460,9 +416,9 @@ class _ActionListTile extends StatelessWidget {
       subtitle:
           subtitle != null
               ? Text(
-                subtitle!,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              )
+                  subtitle!,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                )
               : null,
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
     );

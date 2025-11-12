@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:tourify_app/features/cart/model/cart_model.dart';
 import 'package:tourify_app/features/cart/model/cart_repository.dart';
 
@@ -86,7 +86,7 @@ class CartPresenter with ChangeNotifier {
         if (subtotal != 0) {
           return sum + subtotal;
         }
-        final basePrice = item.tour?.priceFrom ?? 0;
+        final basePrice = item.tour?.priceAfterDiscount ?? item.tour?.priceFrom ?? 0;
         final passengers = item.adults + item.children;
         final fallbackTotal =
             (passengers > 0 ? passengers : item.quantity) * basePrice;
