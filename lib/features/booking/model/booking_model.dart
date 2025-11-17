@@ -8,9 +8,9 @@ class BookingRequest {
     required this.packageId,
     required this.adults,
     required this.children,
-    required this.contactName,
-    required this.contactEmail,
-    required this.contactPhone,
+    this.contactName,
+    this.contactEmail,
+    this.contactPhone,
     required this.paymentMethod,
     required this.notes,
     required this.passengers,
@@ -22,9 +22,9 @@ class BookingRequest {
   final String packageId;
   final int adults;
   final int children;
-  final String contactName;
-  final String contactEmail;
-  final String contactPhone;
+  final String? contactName;
+  final String? contactEmail;
+  final String? contactPhone;
   final String paymentMethod;
   final String notes;
   final List<BookingPassenger> passengers;
@@ -38,9 +38,12 @@ class BookingRequest {
       'package_id': packageId,
       'adults': adults,
       'children': children,
-      'contact_name': contactName,
-      'contact_email': contactEmail,
-      'contact_phone': contactPhone,
+      if (contactName != null && contactName!.isNotEmpty)
+        'contact_name': contactName,
+      if (contactEmail != null && contactEmail!.isNotEmpty)
+        'contact_email': contactEmail,
+      if (contactPhone != null && contactPhone!.isNotEmpty)
+        'contact_phone': contactPhone,
       'payment_method': paymentMethod,
       'notes': notes,
       if (promotionCode != null && promotionCode!.trim().isNotEmpty)
@@ -76,6 +79,23 @@ class BookingPassenger {
         'document_number': documentNumber,
     };
   }
+
+  factory BookingPassenger.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      return DateTime.tryParse(value.toString());
+    }
+
+    return BookingPassenger(
+      type: (json['type'] ?? json['category'] ?? json['passenger_type'] ?? 'adult').toString(),
+      fullName: (json['full_name'] ?? json['name'] ?? '').toString(),
+      gender: json['gender']?.toString(),
+      dateOfBirth: parseDate(json['date_of_birth'] ?? json['dob'] ?? json['birthdate']),
+      documentNumber: (json['document_number'] ?? json['passport_number'] ?? json['id_number'])?.toString(),
+    );
+  }
+
 }
 
 class BookingResponse {
@@ -196,6 +216,13 @@ class BookingSummary {
     this.promotions = const [],
     this.refundRequests = const [],
     this.invoice,
+    this.payments = const [],
+    this.packageName,
+    this.contactName,
+    this.contactEmail,
+    this.contactPhone,
+    this.notes,
+    this.passengers = const [],
   });
 
   final String id;
@@ -217,6 +244,13 @@ class BookingSummary {
   final List<AppliedPromotion> promotions;
   final List<RefundRequest> refundRequests;
   final BookingInvoice? invoice;
+  final List<BookingPayment> payments;
+  final String? packageName;
+  final String? contactName;
+  final String? contactEmail;
+  final String? contactPhone;
+  final String? notes;
+  final List<BookingPassenger> passengers;
 
   int get totalGuests => adults + children;
 
@@ -267,6 +301,8 @@ class BookingSummary {
             .trim();
 
     final paymentInfo = json['payment'] is Map ? json['payment'] as Map : null;
+    final contactInfo =
+        json['contact'] is Map ? Map<String, dynamic>.from(json['contact']) : null;
 
     TourReview? review;
     final reviewData = json['review'] ?? json['latest_review'];
@@ -308,6 +344,53 @@ class BookingSummary {
         Map<String, dynamic>.from(invoiceRaw),
       );
     }
+
+    final paymentsRaw = json['payments'];
+    final payments =
+        (paymentsRaw is List)
+            ? paymentsRaw
+                .whereType<Map>()
+                .map(
+                  (payment) => BookingPayment.fromJson(
+                    Map<String, dynamic>.from(payment),
+                  ),
+                )
+                .toList()
+            : const <BookingPayment>[];
+
+    final passengersRaw =
+        json['passengers'] ?? json['guest_details'] ?? json['customer_details'];
+    final passengers =
+        (passengersRaw is List)
+            ? passengersRaw
+                .whereType<Map>()
+                .map(
+                  (passenger) => BookingPassenger.fromJson(
+                    Map<String, dynamic>.from(passenger),
+                  ),
+                )
+                .toList()
+            : const <BookingPassenger>[];
+
+    final packageName =
+        (json['package_name'] ??
+                (json['package'] is Map ? json['package']['name'] : null) ??
+                json['plan_name'])
+            ?.toString();
+    final contactName =
+        (json['contact_name'] ??
+                contactInfo?['name'] ??
+                json['customer_name'])?.toString();
+    final contactEmail =
+        (json['contact_email'] ??
+                contactInfo?['email'] ??
+                json['customer_email'])?.toString();
+    final contactPhone =
+        (json['contact_phone'] ??
+                contactInfo?['phone'] ??
+                json['customer_phone'])?.toString();
+    final notes =
+        (json['notes'] ?? json['customer_note'] ?? json['remark'])?.toString();
 
     return BookingSummary(
       id: json['id']?.toString() ?? '',
@@ -354,8 +437,90 @@ class BookingSummary {
       promotions: parsedPromotions,
       refundRequests: refundRequests,
       invoice: invoice,
+      payments: payments,
+      packageName: packageName,
+      contactName: contactName,
+      contactEmail: contactEmail,
+      contactPhone: contactPhone,
+      notes: notes,
+      passengers: passengers,
     );
   }
+}
+
+class BookingPayment {
+  BookingPayment({
+    required this.id,
+    required this.method,
+    required this.status,
+    this.amount,
+    this.refundAmount,
+  });
+
+  final String id;
+  final String method;
+  final String status;
+  final double? amount;
+  final double? refundAmount;
+
+  factory BookingPayment.fromJson(Map<String, dynamic> json) {
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString());
+    }
+
+    return BookingPayment(
+      id: json['id']?.toString() ?? '',
+      method: json['method']?.toString() ?? 'unknown',
+      status: json['status']?.toString() ?? '',
+      amount: parseDouble(json['amount']),
+      refundAmount: parseDouble(
+        json['refund_amount'] ?? json['refunded_amount'],
+      ),
+    );
+  }
+}
+
+class BookingRefundInfo {
+  BookingRefundInfo({
+    this.rate,
+    this.amount,
+    this.policyDaysBefore,
+  });
+
+  final double? rate;
+  final double? amount;
+  final int? policyDaysBefore;
+
+  factory BookingRefundInfo.fromJson(Map<String, dynamic> json) {
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString());
+    }
+
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toInt();
+      return int.tryParse(value.toString());
+    }
+
+    return BookingRefundInfo(
+      rate: parseDouble(json['rate']),
+      amount: parseDouble(json['amount']),
+      policyDaysBefore: parseInt(
+        json['policy_days_before'] ?? json['days_before'],
+      ),
+    );
+  }
+}
+
+class BookingCancellationResult {
+  BookingCancellationResult({required this.message, this.refund});
+
+  final String message;
+  final BookingRefundInfo? refund;
 }
 
 class AppliedPromotion {

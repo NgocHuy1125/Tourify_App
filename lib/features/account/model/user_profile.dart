@@ -11,6 +11,11 @@ class UserProfile {
     this.country,
     this.language,
     this.currency,
+    this.addressLine1,
+    this.addressLine2,
+    this.city,
+    this.state,
+    this.postalCode,
     this.address,
     this.googleAccount,
     this.facebookAccount,
@@ -29,6 +34,11 @@ class UserProfile {
   final String? country;
   final String? language;
   final String? currency;
+  final String? addressLine1;
+  final String? addressLine2;
+  final String? city;
+  final String? state;
+  final String? postalCode;
   final String? address;
   final String? googleAccount;
   final String? facebookAccount;
@@ -126,6 +136,37 @@ class UserProfile {
         json['nationality'];
     final language = json['language'] ?? json['preferred_language'];
     final currency = json['currency'] ?? json['preferred_currency'];
+    final addressLine1 =
+        stringOrNull(json['address_line1'] ?? json['addressLine1']);
+    final addressLine2 =
+        stringOrNull(json['address_line2'] ?? json['addressLine2']);
+    final city = stringOrNull(json['city'] ?? json['city_name']);
+    final state = stringOrNull(json['state'] ?? json['province']);
+    final postalCode =
+        stringOrNull(json['postal_code'] ?? json['zip'] ?? json['zipcode']);
+    final addressCandidates = [
+      stringOrNull(json['address']),
+      stringOrNull(json['address_full']),
+      stringOrNull(json['full_address']),
+      stringOrNull(json['contact_address']),
+    ];
+    final resolvedAddress =
+        addressCandidates.firstWhere(
+          (value) => value != null && value.isNotEmpty,
+          orElse: () => null,
+        ) ??
+        [
+          addressLine1,
+          addressLine2,
+          city,
+          state,
+          postalCode,
+          country?.toString(),
+        ]
+            .whereType<String>()
+            .map((e) => e.trim())
+            .where((value) => value.isNotEmpty)
+            .join(', ');
     final rawBirthday = json['birthday'] ?? json['dob'] ?? json['birthdate'];
 
     final baseLoginMethods = parseLoginMethods(
@@ -171,7 +212,12 @@ class UserProfile {
       country: country?.toString(),
       language: language?.toString(),
       currency: currency?.toString(),
-      address: stringOrNull(json['address']),
+      addressLine1: addressLine1,
+      addressLine2: addressLine2,
+      city: city,
+      state: state,
+      postalCode: postalCode,
+      address: resolvedAddress.isEmpty ? null : resolvedAddress,
       googleAccount: googleAccount,
       facebookAccount: facebookAccount,
       notificationPreferences: notificationPrefs,
@@ -223,6 +269,11 @@ class UserProfile {
     String? language,
     String? currency,
     String? avatarUrl,
+    String? addressLine1,
+    String? addressLine2,
+    String? city,
+    String? state,
+    String? postalCode,
     String? address,
     String? googleAccount,
     String? facebookAccount,
@@ -242,6 +293,11 @@ class UserProfile {
       language: language ?? this.language,
       currency: currency ?? this.currency,
       address: address ?? this.address,
+      addressLine1: addressLine1 ?? this.addressLine1,
+      addressLine2: addressLine2 ?? this.addressLine2,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      postalCode: postalCode ?? this.postalCode,
       googleAccount: googleAccount ?? this.googleAccount,
       facebookAccount: facebookAccount ?? this.facebookAccount,
       notificationPreferences:
@@ -259,6 +315,12 @@ class UserProfile {
       'phone': phone,
       'gender': gender,
       'birthday': birthday?.toIso8601String(),
+      'address_line1': addressLine1,
+      'address_line2': addressLine2,
+      'city': city,
+      'state': state,
+      'postal_code': postalCode,
+      'country': country,
       'address': address,
       'google_account': googleAccount,
       'facebook_account': facebookAccount,

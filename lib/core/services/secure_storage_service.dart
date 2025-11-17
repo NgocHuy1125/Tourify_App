@@ -40,4 +40,16 @@ class SecureStorageService {
     }
     return buffer.toString();
   }
+
+  Future<void> writeValue(String key, String? value) async {
+    if (value == null) {
+      await _storage.delete(key: key);
+    } else {
+      await _storage.write(key: key, value: value);
+    }
+  }
+
+  Future<String?> readValue(String key) => _storage.read(key: key);
+
+  Future<void> deleteValue(String key) => _storage.delete(key: key);
 }

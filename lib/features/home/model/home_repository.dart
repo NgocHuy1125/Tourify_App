@@ -4,12 +4,14 @@ import 'package:tourify_app/core/api/http_client.dart';
 import 'package:tourify_app/core/services/secure_storage_service.dart';
 import 'package:tourify_app/features/home/model/home_models.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
+import 'package:tourify_app/features/search/model/tour_search_filters.dart';
 
 const _baseHost = 'https://travel-backend-heov.onrender.com';
 
 abstract class HomeRepository {
   Future<List<PromotionItem>> fetchActivePromotions({int limit = 5});
   Future<List<TourSummary>> fetchAllTours({int limit = 20});
+  Future<List<TourSummary>> searchTours(TourSearchFilters filters);
   Future<List<TourSummary>> fetchToursByCategory(
     String categoryId, {
     String? slug,
@@ -230,6 +232,23 @@ class HomeRepositoryImpl implements HomeRepository {
     final res = await _http.get('/api/tours?${query}');
     if (res.statusCode != 200) {
       throw Exception('Không thể tải tour theo danh mục.');
+    }
+    final payload = json.decode(res.body);
+    final list = _extractList(
+      payload,
+      preferredKeys: const ['data', 'items', 'tours'],
+    );
+    return list
+        .map((e) => TourSummary.fromJson(_normalizeTourJson(e)))
+        .toList();
+  }
+
+  @override
+  Future<List<TourSummary>> searchTours(TourSearchFilters filters) async {
+    final query = filters.buildQueryString();
+    final res = await _http.get('/api/tours$query');
+    if (res.statusCode != 200) {
+      throw Exception('Không thể tải kết quả tìm kiếm (mã ${res.statusCode}).');
     }
     final payload = json.decode(res.body);
     final list = _extractList(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:tourify_app/features/search/model/search_history_storage.dart';
 import 'package:tourify_app/features/search/model/search_repository.dart';
 import 'package:tourify_app/features/search/model/search_suggestion.dart';
+import 'package:tourify_app/features/search/view/search_results_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -105,6 +106,17 @@ class _SearchScreenState extends State<SearchScreen> {
     _loadHistory();
   }
 
+  void _handleSearch(String keyword) {
+    final value = keyword.trim();
+    if (value.isEmpty) return;
+    _addToHistory(value);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SearchResultsScreen(initialKeyword: value),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const popular = [
@@ -147,7 +159,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             textInputAction: TextInputAction.search,
-            onSubmitted: (value) => _addToHistory(value.trim()),
+            onSubmitted: _handleSearch,
           ),
         ),
       ),
@@ -193,6 +205,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             TextPosition(offset: e.length),
                           );
                           _onChanged();
+                          _handleSearch(e);
                         },
                       ),
                     )
@@ -219,6 +232,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           TextPosition(offset: e.length),
                         );
                         _onChanged();
+                        _handleSearch(e);
                       },
                     ),
                   )
@@ -247,8 +261,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 _controller.selection = TextSelection.fromPosition(
                   TextPosition(offset: s.title.length),
                 );
-                _addToHistory(s.title);
-                _onChanged();
+                _handleSearch(s.title);
               },
             ),
           ),
@@ -271,8 +284,11 @@ class _SearchScreenState extends State<SearchScreen> {
           title: Text(suggestion.title),
           subtitle: Text(suggestion.destination),
           onTap: () {
-            _addToHistory(suggestion.title);
-            // TODO: định hướng tới trang chi tiết/kết quả tìm kiếm
+            _controller.text = suggestion.title;
+            _controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: suggestion.title.length),
+            );
+            _handleSearch(suggestion.title);
           },
         );
       },

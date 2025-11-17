@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:tourify_app/features/account/model/user_profile.dart';
+import 'package:tourify_app/features/account/presenter/account_presenter.dart';
+import 'package:tourify_app/features/account/view/personal_info_screen.dart';
 import 'package:tourify_app/features/booking/model/booking_model.dart';
 import 'package:tourify_app/features/booking/model/booking_repository.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
@@ -40,6 +43,7 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
 
   bool _isSubmitting = false;
   String _selectedMethod = _PaymentMethod.sepay.id;
+  bool _useProfileContact = true;
 
   double get _adultPrice => widget.package.adultPrice;
   double get _childPrice =>
@@ -58,6 +62,19 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       (widget.adults * _discountedAdultPrice) +
       (widget.children * _discountedChildPrice);
 
+  bool _hasProfileContactInfo(UserProfile? profile) {
+    if (profile == null) return false;
+    final name = profile.name.trim();
+    final email = profile.email.trim();
+    final phone = profile.phone?.trim() ?? '';
+    return name.isNotEmpty && email.isNotEmpty && phone.isNotEmpty;
+  }
+
+  String? _maybeValue(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +84,9 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       for (var index = 0; index < widget.children; index++)
         _PassengerFormData(type: 'child'),
     ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefillContactFromProfile(forceLoad: true);
+    });
   }
 
   @override
@@ -82,20 +102,66 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
     super.dispose();
   }
 
-  Future<void> _showAwaitingConfirmationDialog(String message) async {
+  Future<void> _prefillContactFromProfile({bool forceLoad = false}) async {
+    if (!mounted) return;
+    final presenter = context.read<AccountPresenter>();
+    if (forceLoad || presenter.profile == null) {
+      try {
+        await presenter.loadProfile();
+      } catch (_) {
+        // ignore failures; user can still input manually
+      }
+      if (!mounted) return;
+    }
+    final profile = presenter.profile;
+    if (profile == null) {
+      setState(() => _useProfileContact = false);
+      return;
+    }
+    if (_contactName.text.trim().isEmpty && profile.name.trim().isNotEmpty) {
+      _contactName.text = profile.name.trim();
+    }
+    if (_contactEmail.text.trim().isEmpty && profile.email.trim().isNotEmpty) {
+      _contactEmail.text = profile.email.trim();
+    }
+    final phone = profile.phone?.trim();
+    if (_contactPhone.text.trim().isEmpty && phone != null && phone.isNotEmpty) {
+      _contactPhone.text = phone;
+    }
+    final canUseProfile = _hasProfileContactInfo(profile);
+    setState(() => _useProfileContact = canUseProfile);
+  }
+
+  Future<void> _openContactEditor() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PersonalInfoScreen()),
+    );
+    if (!mounted) return;
+    await _prefillContactFromProfile(forceLoad: true);
+  }
+
+  Future<void> _showAwaitingConfirmationDialog(
+    String message, {
+    String? invoiceEmail,
+  }) async {
     if (!mounted) return;
     final trimmed = message.trim();
     final displayMessage =
         trimmed.isNotEmpty
             ? trimmed
             : 'Thanh toán đã được ghi nhận. Vui lòng chờ Tourify xác nhận.';
+    final normalizedEmail = invoiceEmail?.trim() ?? '';
+    final invoiceNote =
+        normalizedEmail.isNotEmpty
+            ? '\\n\\nHóa đơn điện tử sẽ được gửi tới ' + normalizedEmail + ' ngay khi thanh toán được xác nhận.'
+            : '\\n\\nHóa đơn điện tử sẽ được gửi tới email liên hệ bạn đã cung cấp.';
 
     await showDialog<void>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
             title: const Text('Đang chờ xác nhận'),
-            content: Text(displayMessage),
+            content: Text(displayMessage + invoiceNote),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(),
@@ -108,6 +174,7 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
+
 
   Future<void> _handleSubmit() async {
     if (_isSubmitting) return;
@@ -140,19 +207,43 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
 
     setState(() => _isSubmitting = true);
 
+    final accountPresenter = context.read<AccountPresenter>();
+    final profile = accountPresenter.profile;
+    final usingProfileContact = _useProfileContact && _hasProfileContactInfo(profile);
+
+    if (_useProfileContact && !usingProfileContact) {
+      setState(() {
+        _useProfileContact = false;
+        _isSubmitting = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hồ sơ còn thiếu thông tin liên hệ. Vui lòng cập nhật trước khi đặt tour.',
+          ),
+        ),
+      );
+      _openContactEditor();
+      return;
+    }
+
+    final contactEmail =
+        usingProfileContact ? (profile?.email ?? '') : _contactEmail.text.trim();
     final request = BookingRequest(
       tourId: widget.detail.id,
       scheduleId: widget.schedule?.id,
       packageId: widget.package.id,
       adults: widget.adults,
       children: widget.children,
-      contactName: _contactName.text.trim(),
-      contactEmail: _contactEmail.text.trim(),
-      contactPhone: _contactPhone.text.trim(),
+      contactName: usingProfileContact ? null : _maybeValue(_contactName.text),
+      contactEmail: usingProfileContact ? null : _maybeValue(contactEmail),
+      contactPhone:
+          usingProfileContact ? null : _maybeValue(_contactPhone.text),
       paymentMethod: _selectedMethod,
       notes: _notes.text.trim(),
       passengers: _passengers.map((e) => e.toPassenger()).toList(),
-      promotionCode: _promotionCode.text.trim(),
+      promotionCode:
+          _promotionCode.text.trim().isEmpty ? null : _promotionCode.text.trim(),
     );
 
     try {
@@ -189,10 +280,16 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
         );
 
         if (acknowledged == true) {
-          await _showAwaitingConfirmationDialog(fallbackMessage);
+          await _showAwaitingConfirmationDialog(
+            fallbackMessage,
+            invoiceEmail: contactEmail,
+          );
         }
       } else {
-        await _showAwaitingConfirmationDialog(fallbackMessage);
+        await _showAwaitingConfirmationDialog(
+          fallbackMessage,
+          invoiceEmail: contactEmail,
+        );
       }
     } catch (error) {
       if (!mounted) return;
@@ -219,6 +316,10 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       symbol: '₫',
       decimalDigits: 0,
     );
+    final accountPresenter = context.watch<AccountPresenter>();
+    final profile = accountPresenter.profile;
+    final canUseProfile = _hasProfileContactInfo(profile);
+    final usingProfileContact = _useProfileContact && canUseProfile;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Thanh toán tour')),
@@ -249,14 +350,53 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               autoPromotion: widget.detail.autoPromotion,
             ),
             const SizedBox(height: 24),
-            _SectionTitle(title: 'Thông tin liên hệ'),
+            _SectionTitle(
+              title: 'Thông tin liên hệ',
+              action: TextButton.icon(
+                onPressed: _openContactEditor,
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Chỉnh sửa'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFFF5B00),
+                ),
+              ),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Sử dụng thông tin trong hồ sơ'),
+              subtitle: Text(
+                canUseProfile
+                    ? 'Tourify sẽ dùng họ tên, email và số điện thoại đã lưu trong hồ sơ.'
+                    : 'Hồ sơ thiếu họ tên/email/số điện thoại. Vui lòng cập nhật ở trang Hồ sơ.',
+              ),
+              value: usingProfileContact,
+              onChanged:
+                  canUseProfile
+                      ? (value) {
+                        setState(() => _useProfileContact = value);
+                        _formKey.currentState?.validate();
+                      }
+                      : null,
+            ),
+            if (!canUseProfile)
+              TextButton.icon(
+                onPressed: _openContactEditor,
+                icon: const Icon(Icons.person_outline),
+                label: const Text('Mở trang Hồ sơ để bổ sung thông tin'),
+              ),
             const SizedBox(height: 12),
             _ContactField(
               controller: _contactName,
               label: 'Họ và tên',
               hint: 'Nguyễn Văn A',
               textInputAction: TextInputAction.next,
-              validator: _requiredValidator,
+              enabled: !usingProfileContact,
+              validator: (value) {
+                if (usingProfileContact) return null;
+                return value == null || value.trim().isEmpty
+                    ? 'Vui lòng nhập họ tên'
+                    : null;
+              },
             ),
             const SizedBox(height: 12),
             _ContactField(
@@ -265,7 +405,18 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               hint: 'email@domain.com',
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
-              validator: _requiredValidator,
+              enabled: !usingProfileContact,
+              validator: (value) {
+                if (usingProfileContact) return null;
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập email';
+                }
+                final regex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                if (!regex.hasMatch(value.trim())) {
+                  return 'Email không hợp lệ';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             _ContactField(
@@ -273,7 +424,24 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
               label: 'Số điện thoại',
               hint: '09xx xxx xxx',
               keyboardType: TextInputType.phone,
-              validator: _requiredValidator,
+              enabled: !usingProfileContact,
+              validator: (value) {
+                if (usingProfileContact) return null;
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập số điện thoại';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _contactEmail,
+              builder: (_, value, __) => _InvoiceNoticeBanner(
+                email:
+                    usingProfileContact
+                        ? (profile?.email ?? value.text.trim())
+                        : value.text.trim(),
+              ),
             ),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Danh sách hành khách'),
@@ -330,14 +498,6 @@ class _BookingCheckoutPageState extends State<BookingCheckoutPage> {
       ),
     );
   }
-
-  String? _requiredValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Vui lòng nhập thông tin.';
-    }
-    return null;
-  }
-
   List<Widget> _buildPassengerCards() {
     final widgets = <Widget>[];
     var adultOrdinal = 0;
@@ -586,16 +746,27 @@ class _SummaryRow extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
+  final Widget? action;
 
-  const _SectionTitle({required this.title});
+  const _SectionTitle({required this.title, this.action});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    final titleWidget = Text(
       title,
-      style: Theme.of(
-        context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+    );
+
+    if (action == null) return titleWidget;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(child: titleWidget),
+        action!,
+      ],
     );
   }
 }
@@ -608,6 +779,7 @@ class _ContactField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final TextInputAction? textInputAction;
+  final bool enabled;
 
   const _ContactField({
     required this.controller,
@@ -617,6 +789,7 @@ class _ContactField extends StatelessWidget {
     this.keyboardType,
     this.validator,
     this.textInputAction,
+    this.enabled = true,
   });
 
   @override
@@ -625,6 +798,7 @@ class _ContactField extends StatelessWidget {
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      enabled: enabled,
       validator: validator,
       textInputAction: textInputAction,
       decoration: InputDecoration(
@@ -635,6 +809,54 @@ class _ContactField extends StatelessWidget {
           horizontal: 16,
           vertical: 14,
         ),
+      ),
+    );
+  }
+}
+
+class _InvoiceNoticeBanner extends StatelessWidget {
+  const _InvoiceNoticeBanner({required this.email});
+
+  final String email;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final target = email.isNotEmpty ? email : 'email liên hệ này';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF6EA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD3A4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.receipt_long_outlined, color: Color(0xFFFF5B00)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hóa đơn sẽ gửi qua email',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Sau khi thanh toán thành công, hóa đơn điện tử sẽ được gửi tới ' + target + '. Vui lòng nhập đúng email nếu muốn nhận hóa đơn bằng địa chỉ khác.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

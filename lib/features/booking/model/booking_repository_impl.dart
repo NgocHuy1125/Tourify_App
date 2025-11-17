@@ -265,6 +265,38 @@ class BookingRepositoryImpl implements BookingRepository {
     return BookingInvoice.fromJson(Map<String, dynamic>.from(data));
   }
 
+  @override
+  Future<BookingCancellationResult> cancelBooking(String bookingId) async {
+    final response = await _http.post('/api/bookings/$bookingId/cancel');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message =
+          _extractErrorMessage(response.body) ?? 'Không thể hủy tour.';
+      throw Exception(message);
+    }
+
+    final body = response.body.trim();
+    if (body.isEmpty) {
+      return BookingCancellationResult(message: 'Đã hủy tour.');
+    }
+
+    final decoded = json.decode(body);
+    final map =
+        decoded is Map<String, dynamic>
+            ? decoded
+            : decoded is Map
+                ? Map<String, dynamic>.from(decoded.cast())
+                : <String, dynamic>{};
+    final message = map['message']?.toString() ?? 'Đã hủy tour.';
+    BookingRefundInfo? refund;
+    final refundMap = map['refund'];
+    if (refundMap is Map) {
+      refund = BookingRefundInfo.fromJson(
+        Map<String, dynamic>.from(refundMap),
+      );
+    }
+    return BookingCancellationResult(message: message, refund: refund);
+  }
+
   String? _extractErrorMessage(String source) {
     final trimmed = source.trim();
     if (trimmed.isEmpty) return null;

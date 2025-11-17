@@ -64,14 +64,26 @@ class AppNotification {
 
   AppNotification markAsRead() {
     if (isRead) return this;
+    return copyWith(readAt: DateTime.now());
+  }
+
+  AppNotification copyWith({
+    String? id,
+    String? type,
+    String? title,
+    String? message,
+    Map<String, dynamic>? data,
+    DateTime? createdAt,
+    DateTime? readAt,
+  }) {
     return AppNotification(
-      id: id,
-      type: type,
-      title: title,
-      message: message,
-      data: data,
-      createdAt: createdAt,
-      readAt: DateTime.now(),
+      id: id ?? this.id,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+      readAt: readAt ?? this.readAt,
     );
   }
 

@@ -37,4 +37,5 @@ abstract class BookingRepository {
       required String email,
       required String deliveryMethod,
     });
+  Future<BookingCancellationResult> cancelBooking(String bookingId);
 }

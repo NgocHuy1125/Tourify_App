@@ -117,6 +117,12 @@ class AccountPresenter with ChangeNotifier {
               payload['birthday'] is String
                   ? DateTime.tryParse(payload['birthday'] as String)
                   : payload['birthday'] as DateTime?,
+          country: payload['country'] as String?,
+          addressLine1: payload['address_line1'] as String?,
+          addressLine2: payload['address_line2'] as String?,
+          city: payload['city'] as String?,
+          state: payload['state'] as String?,
+          postalCode: payload['postal_code'] as String?,
           address: payload['address'] as String?,
           googleAccount: payload['google_account'] as String?,
           facebookAccount: payload['facebook_account'] as String?,

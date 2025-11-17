@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:tourify_app/features/booking/model/booking_model.dart';
 import 'package:tourify_app/features/booking/presenter/trips_presenter.dart';
 import 'package:tourify_app/features/home/view/all_tours_screen.dart';
+import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/tour/view/tour_detail_page.dart';
 
 enum _ReviewOutcome { created, updated, deleted }
@@ -34,22 +35,25 @@ String _filterLabel(String key) {
   }
 }
 
-String _statusLabel(String status) {
-  final normalized = status.toLowerCase();
-  if (normalized.contains('pending') || normalized.contains('await')) {
+String _statusLabel(String status, {String? paymentStatus}) {
+  final payment = paymentStatus?.toLowerCase() ?? '';
+  if (payment.contains('paid') || payment.contains('success')) {
+    return 'Đã thanh toán';
+  }
+  if (payment.contains('pending') || payment.contains('await')) {
     return 'Chờ thanh toán';
   }
-  if (normalized.contains('confirm')) {
-    return 'Đã xác nhận';
-  }
+  final normalized = status.toLowerCase();
+  if (normalized.contains('confirm')) return 'Đã xác nhận';
   if (normalized.contains('complete') || normalized.contains('finish')) {
     return 'Hoàn thành';
   }
-  if (normalized.contains('cancel')) {
-    return 'Đã hủy';
-  }
+  if (normalized.contains('cancel')) return 'Đã hủy';
   if (normalized.contains('process') || normalized.contains('review')) {
     return 'Đang xử lý';
+  }
+  if (normalized.contains('pending') || normalized.contains('await')) {
+    return 'Chờ thanh toán';
   }
   return status;
 }
@@ -81,6 +85,42 @@ String _formatGuests(int adults, int children) {
 String? _reviewTimestamp(DateTime? date) {
   if (date == null) return null;
   return 'Gửi ngày ${_dateFormatter.format(date)}';
+}
+
+String _localizedError(String raw) {
+  if (raw.isEmpty) return 'Đã xảy ra lỗi. Vui lòng thử lại.';
+  var message = raw;
+  const prefix = 'Exception: ';
+  if (message.startsWith(prefix)) {
+    message = message.substring(prefix.length);
+  }
+  message = message.trim();
+  final lower = message.toLowerCase();
+  if (lower.contains('account name must match booking contact name')) {
+    return 'Tên chủ tài khoản phải trùng với tên liên hệ của đơn đặt tour.';
+  }
+  if (lower.contains('booking can no longer be cancelled')) {
+    return 'Đơn này không thể hủy nữa. Vui lòng liên hệ hỗ trợ.';
+  }
+  if (message.isEmpty) return 'Đã xảy ra lỗi. Vui lòng thử lại.';
+  return message;
+}
+
+String _refundStatusLabel(String raw) {
+  final status = raw.toLowerCase();
+  if (status.contains('await') || status.contains('customer')) {
+    return 'Chờ bạn xác nhận';
+  }
+  if (status.contains('pending') || status.contains('process')) {
+    return 'Đang xử lý';
+  }
+  if (status.contains('complete') || status.contains('success')) {
+    return 'Đã hoàn tất';
+  }
+  if (status.contains('reject') || status.contains('fail')) {
+    return 'Đã bị từ chối';
+  }
+  return raw;
 }
 
 List<Widget> _buildRatingStars(int rating) {
@@ -163,180 +203,179 @@ class _TripsScreenState extends State<TripsScreen> {
     int rating = existing?.rating ?? 5;
     bool submitting = false;
 
-    final outcome = await showModalBottomSheet<_ReviewOutcome>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-            return Padding(
-              padding: EdgeInsets.fromLTRB(16, 20, 16, bottomInset + 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    _ReviewOutcome? outcome;
+    try {
+      outcome = await showModalBottomSheet<_ReviewOutcome>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+              return Padding(
+                padding: EdgeInsets.fromLTRB(16, 20, 16, bottomInset + 16),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        existing == null
-                            ? 'Đánh giá tour'
-                            : 'Cập nhật đánh giá',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed:
-                            submitting
+                      Row(
+                        children: [
+                          Text(
+                            existing == null
+                                ? 'Đánh giá tour'
+                                : 'Cập nhật đánh giá',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: submitting
                                 ? null
                                 : () => Navigator.of(sheetContext).pop(),
-                        icon: const Icon(Icons.close),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    booking.tour?.title ?? 'Tour của bạn',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: List.generate(5, (index) {
-                      final value = index + 1;
-                      final filled = value <= rating;
-                      return IconButton(
-                        onPressed:
-                            submitting
+                      const SizedBox(height: 12),
+                      Text(
+                        booking.tour?.title ?? 'Tour của bạn',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: List.generate(5, (index) {
+                          final value = index + 1;
+                          final filled = value <= rating;
+                          return IconButton(
+                            onPressed: submitting
                                 ? null
                                 : () => setState(() => rating = value),
-                        icon: Icon(
-                          filled ? Icons.star : Icons.star_border,
-                          color: const Color(0xFFFFB400),
+                            icon: Icon(
+                              filled ? Icons.star : Icons.star_border,
+                              color: const Color(0xFFFFB400),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: controller,
+                        enabled: !submitting,
+                        maxLines: 5,
+                        minLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Cảm nhận của bạn',
+                          hintText: 'Chia sẻ trải nghiệm sau chuyến đi...',
+                          border: OutlineInputBorder(),
                         ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: controller,
-                    enabled: !submitting,
-                    maxLines: 5,
-                    minLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Cảm nhận của bạn',
-                      hintText: 'Chia sẻ trải nghiệm sau chuyến đi...',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  if (presenter.actionError.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      presenter.actionError,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      if (existing != null)
-                        TextButton.icon(
-                          onPressed:
-                              submitting
+                      ),
+                      if (presenter.actionError.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _localizedError(presenter.actionError),
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          if (existing != null)
+                            TextButton.icon(
+                              onPressed: submitting
                                   ? null
                                   : () async {
-                                    final confirmed = await showDialog<bool>(
-                                      context: context,
-                                      builder:
-                                          (dialogContext) => AlertDialog(
-                                            title: const Text('Xóa đánh giá'),
-                                            content: const Text(
-                                              'Bạn có chắc chắn muốn xóa đánh giá này?',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.of(
-                                                      dialogContext,
-                                                    ).pop(false),
-                                                child: const Text('Hủy'),
-                                              ),
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.of(
-                                                      dialogContext,
-                                                    ).pop(true),
-                                                child: const Text('Xóa'),
-                                              ),
-                                            ],
+                                      final confirmed =
+                                          await showDialog<bool>(
+                                        context: context,
+                                        builder: (dialogContext) =>
+                                            AlertDialog(
+                                          title: const Text('Xóa đánh giá'),
+                                          content: const Text(
+                                            'Bạn có chắc chắn muốn xóa đánh giá này?',
                                           ),
-                                    );
-                                    if (confirmed == true) {
-                                      setState(() => submitting = true);
-                                      final success = await presenter
-                                          .deleteReview(existing.id);
-                                      setState(() => submitting = false);
-                                      if (success && context.mounted) {
-                                        Navigator.of(
-                                          sheetContext,
-                                        ).pop(_ReviewOutcome.deleted);
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(dialogContext)
+                                                      .pop(false),
+                                              child: const Text('Hủy'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(dialogContext)
+                                                      .pop(true),
+                                              child: const Text('Xóa'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirmed == true) {
+                                        setState(() => submitting = true);
+                                        final success = await presenter
+                                            .deleteReview(existing.id);
+                                        setState(() => submitting = false);
+                                        if (success && context.mounted) {
+                                          Navigator.of(sheetContext)
+                                              .pop(_ReviewOutcome.deleted);
+                                        }
                                       }
-                                    }
-                                  },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Xóa đánh giá'),
-                        ),
-                      const Spacer(),
-                      ElevatedButton(
-                        onPressed:
-                            submitting
+                                    },
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Xóa đánh giá'),
+                            ),
+                          const Spacer(),
+                          ElevatedButton(
+                            onPressed: submitting
                                 ? null
                                 : () async {
-                                  setState(() => submitting = true);
-                                  final success = await presenter.submitReview(
-                                    bookingId: booking.id,
-                                    rating: rating,
-                                    comment: controller.text.trim(),
-                                    reviewId: existing?.id,
-                                  );
-                                  setState(() => submitting = false);
-                                  if (success && context.mounted) {
-                                    Navigator.of(sheetContext).pop(
-                                      existing == null
-                                          ? _ReviewOutcome.created
-                                          : _ReviewOutcome.updated,
+                                    setState(() => submitting = true);
+                                    final success =
+                                        await presenter.submitReview(
+                                      bookingId: booking.id,
+                                      rating: rating,
+                                      comment: controller.text.trim(),
+                                      reviewId: existing?.id,
                                     );
-                                  }
-                                },
-                        child:
-                            submitting
+                                    setState(() => submitting = false);
+                                    if (success && context.mounted) {
+                                      Navigator.of(sheetContext).pop(
+                                        existing == null
+                                            ? _ReviewOutcome.created
+                                            : _ReviewOutcome.updated,
+                                      );
+                                    }
+                                  },
+                            child: submitting
                                 ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Text('Lưu đánh giá'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
 
     if (outcome != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final message = switch (outcome) {
+        final message = switch (outcome!) {
           _ReviewOutcome.created => 'Đã gửi đánh giá thành công.',
           _ReviewOutcome.updated => 'Đã cập nhật đánh giá thành công.',
           _ReviewOutcome.deleted => 'Đã xóa đánh giá.',
@@ -347,6 +386,7 @@ class _TripsScreenState extends State<TripsScreen> {
       });
     }
   }
+
 }
 
 class _FilterBar extends StatelessWidget {
@@ -517,11 +557,13 @@ class _BookingCard extends StatelessWidget {
     required this.booking,
     required this.presenter,
     required this.onOpenReview,
+    this.expanded = false,
   });
 
   final BookingSummary booking;
   final TripsPresenter presenter;
   final VoidCallback onOpenReview;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -530,7 +572,10 @@ class _BookingCard extends StatelessWidget {
     final tourId = tour?.id ?? '';
     final destination = tour?.destination ?? '';
     final reference = booking.reference;
-    final statusText = _statusLabel(booking.status);
+    final statusText = _statusLabel(
+      booking.status,
+      paymentStatus: booking.paymentStatus,
+    );
     final statusColor = presenter.statusColor(booking.status);
     final review = booking.review;
     final canReview = booking.canReview || review != null;
@@ -540,6 +585,9 @@ class _BookingCard extends StatelessWidget {
     final invoice = booking.invoice;
     final hasInvoice = invoice != null;
     final canRequestInvoice = _canRequestInvoice(booking, hasInvoice);
+    final payments = booking.payments;
+    final canCancel = _canCancelBooking(booking);
+    final isCancelled = booking.status.toLowerCase().contains('cancel');
     final totalDisplay = booking.totalPrice ?? booking.totalAmount;
     final discountAmount = booking.discountTotal ?? 0;
 
@@ -605,9 +653,27 @@ class _BookingCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
+          ],
+        ),
+        if (isCancelled) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Tour đã bị hủy. Voucher hoặc hoàn tiền (nếu có) đã được gửi qua email của bạn.',
+              style: TextStyle(
+                color: Color(0xFFBF360C),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
+        ],
+        const SizedBox(height: 16),
           _InfoRow(
             icon: Icons.date_range_outlined,
             label: 'Lịch trình',
@@ -659,6 +725,10 @@ class _BookingCard extends StatelessWidget {
               value: _formatCurrency(booking.amountPaid),
             ),
           ],
+        if (payments.isNotEmpty && expanded) ...[
+            const SizedBox(height: 16),
+            _PaymentBreakdown(payments: payments),
+          ],
           if (refundHistory.isNotEmpty) ...[
             const SizedBox(height: 16),
             _RefundHistoryList(
@@ -671,6 +741,15 @@ class _BookingCard extends StatelessWidget {
           spacing: 12,
           runSpacing: 12,
           children: [
+            if (!expanded)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _openBookingDetail(context),
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('Chi tiết đơn hàng'),
+                ),
+              ),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -697,6 +776,22 @@ class _BookingCard extends StatelessWidget {
                     review == null
                         ? 'Đánh giá tour'
                         : 'Chỉnh sửa đánh giá',
+                  ),
+                ),
+              ),
+            if (canCancel)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _confirmCancelBooking(context),
+                  icon: const Icon(
+                    Icons.cancel_outlined,
+                    color: Color(0xFFE53935),
+                  ),
+                  label: const Text('Hủy tour'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE53935),
+                    side: const BorderSide(color: Color(0xFFE53935)),
                   ),
                 ),
               ),
@@ -797,160 +892,239 @@ class _BookingCard extends StatelessWidget {
     return status.contains('complete') && payment.contains('paid');
   }
 
-  Future<void> _openRefundRequestSheet(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final formKey = GlobalKey<FormState>();
-    final accountNameCtrl = TextEditingController();
-    final accountNumberCtrl = TextEditingController();
-    final bankNameCtrl = TextEditingController();
-    final branchCtrl = TextEditingController();
-    final amountCtrl = TextEditingController(
-      text: (booking.totalPrice ?? booking.totalAmount ?? 0).toStringAsFixed(0),
-    );
-    final noteCtrl = TextEditingController();
-    bool submitting = false;
+  bool _canCancelBooking(BookingSummary booking) {
+    final status = booking.status.toLowerCase();
+    if (status.contains('cancel') || status.contains('complete')) {
+      return false;
+    }
+    return true;
+  }
 
-    await showModalBottomSheet<void>(
+  bool _isPaidBooking(BookingSummary booking) {
+    final paymentStatus = booking.paymentStatus?.toLowerCase() ?? '';
+    if (paymentStatus.contains('paid') || paymentStatus.contains('success')) {
+      return true;
+    }
+    if ((booking.amountPaid ?? 0) > 0) return true;
+    return booking.payments.any((payment) {
+      final status = payment.status.toLowerCase();
+      return status.contains('paid') ||
+          status.contains('success') ||
+          status.contains('complete');
+    });
+  }
+
+  Future<void> _openRefundRequestSheet(BuildContext context) async {
+    final data = await _showRefundFormSheet(context);
+    if (data == null || !context.mounted) return;
+    await _submitRefundRequest(context, data);
+  }
+
+  Future<_RefundFormData?> _showRefundFormSheet(
+    BuildContext context, {
+    _RefundFormData? initial,
+  }) async {
+    final formKey = GlobalKey<FormState>();
+    final defaults = initial ??
+        _RefundFormData(
+          accountName: booking.contactName ?? '',
+          accountNumber: '',
+          bankName: '',
+          bankBranch: '',
+          amount: booking.totalPrice ?? booking.totalAmount ?? 0,
+          currency: 'VND',
+          note: '',
+        );
+
+    final accountNameCtrl = TextEditingController(text: defaults.accountName);
+    final accountNumberCtrl = TextEditingController(text: defaults.accountNumber);
+    final bankNameCtrl = TextEditingController(text: defaults.bankName);
+    final branchCtrl = TextEditingController(text: defaults.bankBranch);
+    final amountCtrl = TextEditingController(
+      text: defaults.amount.toStringAsFixed(0),
+    );
+    final noteCtrl = TextEditingController(text: defaults.note ?? '');
+
+    final result = await showModalBottomSheet<_RefundFormData>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final inset = MediaQuery.of(context).viewInsets.bottom;
-            return Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, inset + 20),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-        Row(
-          children: [
-            const Text(
-              'Yêu cầu hoàn tiền',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: submitting
-                              ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-        _LabeledField(
-          controller: accountNameCtrl,
-          label: 'Tên chủ tài khoản',
-          hint: 'Ví dụ: NGUYEN VAN A',
-          validator: (value) =>
-              value == null || value.trim().isEmpty
-                  ? 'Vui lòng nhập tên chủ tài khoản'
-                  : null,
-        ),
-                    const SizedBox(height: 12),
-        _LabeledField(
-          controller: accountNumberCtrl,
-          label: 'Số tài khoản',
-          hint: 'Nhập số tài khoản ngân hàng',
-          keyboardType: TextInputType.number,
-          validator: (value) =>
-              value == null || value.trim().isEmpty
-                  ? 'Vui lòng nhập số tài khoản'
-                  : null,
-        ),
-                    const SizedBox(height: 12),
-        _LabeledField(
-          controller: bankNameCtrl,
-          label: 'Ngân hàng',
-          hint: 'Ví dụ: Vietcombank',
-          validator: (value) =>
-              value == null || value.trim().isEmpty
-                  ? 'Vui lòng nhập tên ngân hàng'
-                  : null,
-        ),
-                    const SizedBox(height: 12),
-        _LabeledField(
-          controller: branchCtrl,
-          label: 'Chi nhánh',
-          hint: 'Ví dụ: Chi nhánh Thủ Đức',
-          validator: (value) =>
-              value == null || value.trim().isEmpty
-                  ? 'Vui lòng nhập chi nhánh'
-                  : null,
-        ),
-                    const SizedBox(height: 12),
-        _LabeledField(
-          controller: amountCtrl,
-          label: 'Số tiền (VND)',
-          hint: 'Để trống để hoàn toàn bộ số tiền',
-          keyboardType: TextInputType.number,
-        ),
-                    const SizedBox(height: 12),
-        _LabeledField(
-          controller: noteCtrl,
-          label: 'Ghi chú',
-          hint: 'Thông tin bổ sung cho đối tác',
-          maxLines: 3,
-        ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: submitting
-                            ? null
-                            : () async {
-                                if (!formKey.currentState!.validate()) return;
-                                final parsedAmount = double.tryParse(
-                                      amountCtrl.text.replaceAll(RegExp(r'[^0-9.]'), ''),
-                                    ) ??
-                                    (booking.totalPrice ?? booking.totalAmount ?? 0);
-                                setState(() => submitting = true);
-                                final result = await presenter.submitRefundRequest(
-                                  bookingId: booking.id,
-                                  accountName: accountNameCtrl.text.trim(),
-                                  accountNumber: accountNumberCtrl.text.trim(),
-                                  bankName: bankNameCtrl.text.trim(),
-                                  bankBranch: branchCtrl.text.trim(),
-                                  amount: parsedAmount,
-                                  customerMessage: noteCtrl.text.trim().isEmpty
-                                      ? null
-                                      : noteCtrl.text.trim(),
-                                );
-                                setState(() => submitting = false);
-                                if (result != null && context.mounted) {
-                                  Navigator.of(sheetContext).pop();
-                                  messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Đã gửi yêu cầu hoàn tiền. Vui lòng chờ xử lý.'),
-                                    ),
-                                  );
-                                } else if (presenter.actionError.isNotEmpty) {
-                                  messenger.showSnackBar(
-                                    SnackBar(content: Text(presenter.actionError)),
-                                  );
-                                }
-                              },
-                        child: submitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Gửi yêu cầu'),
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Yêu cầu hoàn tiền',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                       ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    controller: accountNameCtrl,
+                    label: 'Tên chủ tài khoản',
+                    hint: 'Ví dụ: NGUYEN VAN A',
+                    readOnly: true,
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Vui lòng nhập tên chủ tài khoản'
+                            : null,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tên chủ tài khoản phải trùng với tên liên hệ của đơn đặt tour.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    controller: accountNumberCtrl,
+                    label: 'Số tài khoản',
+                    hint: 'Nhập số tài khoản ngân hàng',
+                    keyboardType: TextInputType.number,
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Vui lòng nhập số tài khoản'
+                            : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    controller: bankNameCtrl,
+                    label: 'Ngân hàng',
+                    hint: 'Ví dụ: Vietcombank',
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Vui lòng nhập tên ngân hàng'
+                            : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    controller: branchCtrl,
+                    label: 'Chi nhánh',
+                    hint: 'Ví dụ: Chi nhánh Thủ Đức',
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Vui lòng nhập chi nhánh'
+                            : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    controller: amountCtrl,
+                    label: 'Số tiền (VND)',
+                    hint: 'Để trống để hoàn toàn bộ số tiền',
+                    keyboardType: TextInputType.number,
+                    readOnly: true,
+                  ),
+                  const SizedBox(height: 12),
+                  _LabeledField(
+                    controller: noteCtrl,
+                    label: 'Ghi chú',
+                    hint: 'Thông tin bổ sung cho đối tác',
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!formKey.currentState!.validate()) return;
+                        Navigator.of(sheetContext).pop(
+                          _RefundFormData(
+                            accountName: accountNameCtrl.text.trim(),
+                            accountNumber: accountNumberCtrl.text.trim(),
+                            bankName: bankNameCtrl.text.trim(),
+                            bankBranch: branchCtrl.text.trim(),
+                            amount: defaults.amount,
+                            currency: defaults.currency,
+                            note: noteCtrl.text.trim().isEmpty
+                                ? null
+                                : noteCtrl.text.trim(),
+                          ),
+                        );
+                      },
+                      child: const Text('Tiếp tục'),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
+
+    accountNameCtrl.dispose();
+    accountNumberCtrl.dispose();
+    bankNameCtrl.dispose();
+    branchCtrl.dispose();
+    amountCtrl.dispose();
+    noteCtrl.dispose();
+
+    accountNameCtrl.dispose();
+    accountNumberCtrl.dispose();
+    bankNameCtrl.dispose();
+    branchCtrl.dispose();
+    amountCtrl.dispose();
+    noteCtrl.dispose();
+
+    return result;
   }
+
+  Future<void> _submitRefundRequest(
+    BuildContext context,
+    _RefundFormData data,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final result = await presenter.submitRefundRequest(
+      bookingId: booking.id,
+      accountName: data.accountName,
+      accountNumber: data.accountNumber,
+      bankName: data.bankName,
+      bankBranch: data.bankBranch,
+      amount: data.amount,
+      customerMessage: data.note,
+    );
+    if (context.mounted) {
+      rootNavigator.pop();
+      if (result != null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Yêu cầu hoàn tiền đã gửi. Vui lòng chờ xác nhận.'),
+          ),
+        );
+      } else if (presenter.actionError.isNotEmpty) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(_localizedError(presenter.actionError))),
+        );
+      }
+    }
+  }
+
 
   Future<void> _confirmRefund(
     BuildContext context,
@@ -964,7 +1138,7 @@ class _BookingCard extends StatelessWidget {
       );
     } else if (presenter.actionError.isNotEmpty) {
       messenger.showSnackBar(
-        SnackBar(content: Text(presenter.actionError)),
+        SnackBar(content: Text(_localizedError(presenter.actionError))),
       );
     }
   }
@@ -972,10 +1146,12 @@ class _BookingCard extends StatelessWidget {
   Future<void> _openInvoiceRequestSheet(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final formKey = GlobalKey<FormState>();
-    final nameCtrl = TextEditingController();
+    final nameCtrl = TextEditingController(text: booking.contactName ?? '');
     final taxCtrl = TextEditingController();
-    final addressCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
+    final addressCtrl = TextEditingController(
+      text: booking.tour?.destination ?? '',
+    );
+    final emailCtrl = TextEditingController(text: booking.contactEmail ?? '');
     String deliveryMethod = 'download';
     bool submitting = false;
 
@@ -1019,6 +1195,7 @@ class _BookingCard extends StatelessWidget {
                       _LabeledField(
                         controller: nameCtrl,
                         label: 'Tên khách hàng / Doanh nghiệp',
+                        hint: 'Ví dụ: Đinh Huy hoặc Công ty ABC',
                         validator: (value) =>
                             value == null || value.trim().isEmpty
                                 ? 'Vui lòng nhập tên khách hàng'
@@ -1028,6 +1205,7 @@ class _BookingCard extends StatelessWidget {
                       _LabeledField(
                         controller: taxCtrl,
                         label: 'Mã số thuế',
+                        hint: 'Ví dụ: 0101234567',
                         validator: (value) =>
                             value == null || value.trim().isEmpty
                                 ? 'Vui lòng nhập mã số thuế'
@@ -1037,6 +1215,7 @@ class _BookingCard extends StatelessWidget {
                       _LabeledField(
                         controller: addressCtrl,
                         label: 'Địa chỉ xuất hóa đơn',
+                        hint: 'Ví dụ: Số 1 Tràng Tiền, Hoàn Kiếm, Hà Nội',
                         validator: (value) =>
                             value == null || value.trim().isEmpty
                                 ? 'Vui lòng nhập địa chỉ'
@@ -1069,7 +1248,7 @@ class _BookingCard extends StatelessWidget {
                         spacing: 12,
                         children: [
                           ChoiceChip(
-                            label: const Text('Tải xuống trực tiếp'),
+                            label: const Text('Tải về trong ứng dụng'),
                             selected: deliveryMethod == 'download',
                             onSelected:
                                 submitting
@@ -1124,7 +1303,9 @@ class _BookingCard extends StatelessWidget {
                                   } else if (presenter.actionError.isNotEmpty) {
                                     messenger.showSnackBar(
                                       SnackBar(
-                                        content: Text(presenter.actionError),
+                                        content: Text(
+                                          _localizedError(presenter.actionError),
+                                        ),
                                       ),
                                     );
                                   }
@@ -1150,6 +1331,10 @@ class _BookingCard extends StatelessWidget {
         );
       },
     );
+    nameCtrl.dispose();
+    taxCtrl.dispose();
+    addressCtrl.dispose();
+    emailCtrl.dispose();
   }
 
   Future<void> _showInvoiceDetails(BuildContext context) async {
@@ -1258,6 +1443,148 @@ class _BookingCard extends StatelessWidget {
         const SnackBar(content: Text('Không thể mở liên kết tải hóa đơn.')),
       );
     }
+  }
+
+  bool _requiresRefundBeforeCancel(BookingSummary booking) {
+    final status = booking.status.toLowerCase();
+    return _isPaidBooking(booking) &&
+        (status.contains('confirm') || status.contains('processing') || status.contains('await'));
+  }
+
+  Future<void> _confirmCancelBooking(BuildContext context) async {
+    _RefundFormData? pendingRefund;
+    if (_requiresRefundBeforeCancel(booking)) {
+      pendingRefund = await _showRefundFormSheet(context);
+      if (pendingRefund == null) return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hủy tour'),
+        content: const Text(
+          'Bạn có chắc chắn muốn hủy tour này? Chính sách hoàn tiền sẽ áp dụng theo quy định của đối tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Giữ tour'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Hủy tour'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    BookingCancellationResult? result;
+    try {
+      result = await presenter.cancelBooking(booking.id);
+    } catch (_) {
+      // presenter will expose actionError; handle below
+    } finally {
+      if (rootNavigator.mounted) {
+        rootNavigator.pop();
+      }
+    }
+
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (result == null) {
+      final errorMessage = presenter.actionError.isNotEmpty
+          ? _localizedError(presenter.actionError)
+          : 'Không thể hủy tour ngay lúc này. Vui lòng thử lại sau.';
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage)));
+      return;
+    }
+
+    final BookingCancellationResult successResult = result;
+    final refund = successResult.refund;
+    String? refundRateText;
+    if (refund != null && refund.rate != null) {
+      final rate = refund.rate!;
+      final normalized = rate > 1 ? rate : rate * 100;
+      refundRateText = 'Tỷ lệ hoàn: ${normalized.toStringAsFixed(0)}%';
+    }
+    final refundPolicyText = refund != null && refund.policyDaysBefore != null
+        ? 'Chính sách: trước ${refund.policyDaysBefore} ngày khởi hành'
+        : null;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Đã hủy tour'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(successResult.message),
+            if (refund != null) ...[
+              const SizedBox(height: 12),
+              if (refund.amount != null) ...[
+                const Text(
+                  'Số tiền dự kiến hoàn:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(_formatCurrency(refund.amount)),
+              ],
+              if (refundRateText != null) ...[
+                const SizedBox(height: 6),
+                Text(refundRateText),
+              ],
+              if (refundPolicyText != null) ...[
+                const SizedBox(height: 6),
+                Text(refundPolicyText),
+              ],
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    if (pendingRefund != null) {
+      await _submitRefundRequest(context, pendingRefund);
+      return;
+    }
+
+    if (_isPaidBooking(booking)) {
+      await _openRefundRequestSheet(context);
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text(successResult.message)));
+    }
+  }
+
+
+
+  Future<void> _openBookingDetail(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => BookingDetailPage(
+              booking: booking,
+              presenter: presenter,
+              onOpenReview: onOpenReview,
+            ),
+      ),
+    );
   }
 }
 class _InfoRow extends StatelessWidget {
@@ -1456,6 +1783,785 @@ class _RefundStatusChip extends StatelessWidget {
   }
 }
 
+class _PaymentBreakdown extends StatelessWidget {
+  const _PaymentBreakdown({required this.payments});
+
+  final List<BookingPayment> payments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Thanh toán',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        ...payments.map((payment) {
+          final refund = payment.refundAmount ?? 0;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      payment.method,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      _formatCurrency(payment.amount),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  payment.status,
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                if (refund > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Đã hoàn: ${_formatCurrency(refund)}',
+                    style: const TextStyle(
+                      color: Color(0xFF27AE60),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+
+class BookingDetailPage extends StatelessWidget {
+  const BookingDetailPage({
+    super.key,
+    required this.booking,
+    required this.presenter,
+    required this.onOpenReview,
+  });
+
+  final BookingSummary booking;
+  final TripsPresenter presenter;
+  final VoidCallback onOpenReview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          booking.reference != null
+              ? 'Đơn ${booking.reference}'
+              : 'Đơn ${booking.id}',
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _BookingCard(
+              booking: booking,
+              presenter: presenter,
+              onOpenReview: onOpenReview,
+              expanded: true,
+            ),
+            const SizedBox(height: 20),
+            _buildJourneyOverview(context),
+            const SizedBox(height: 16),
+            _ResponsiveDetailRow(
+              children: [
+                _buildRefundSummary(context),
+                _buildContactInfo(context),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildPassengerSection(context),
+            const SizedBox(height: 16),
+            _buildPaymentHistory(context),
+            const SizedBox(height: 16),
+            _buildInvoiceSection(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJourneyOverview(BuildContext context) {
+    final tour = booking.tour;
+    final totalDisplay = booking.totalPrice ?? booking.totalAmount;
+    final discountAmount = booking.discountTotal ?? 0;
+    final notes = booking.notes?.trim();
+
+    return _DetailSectionCard(
+      title: booking.reference != null
+          ? 'Booking #${booking.reference}'
+          : 'Booking ${booking.id}',
+      subtitle: tour?.title ?? 'Tour của bạn',
+      icon: Icons.assignment_outlined,
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _DetailStatusChip(
+            label: _statusLabel(
+              booking.status,
+              paymentStatus: booking.paymentStatus,
+            ),
+            color: presenter.statusColor(booking.status),
+          ),
+          const SizedBox(height: 8),
+          _DetailStatusChip(
+            label: _paymentStatusLabel(booking.paymentStatus),
+            color: _paymentStatusColor(booking.paymentStatus),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 18,
+            runSpacing: 16,
+            children: [
+              _DetailKeyValue(
+                label: 'Điểm đến',
+                value: tour?.destination ?? 'Đang cập nhật',
+                icon: Icons.location_on_outlined,
+              ),
+              _DetailKeyValue(
+                label: 'Lịch trình',
+                value: _formatDateRange(booking.startDate, booking.endDate),
+                icon: Icons.event_available_outlined,
+              ),
+              _DetailKeyValue(
+                label: 'Số khách',
+                value: _formatGuests(booking.adults, booking.children),
+                icon: Icons.groups_outlined,
+              ),
+              if (booking.packageName != null && booking.packageName!.isNotEmpty)
+                _DetailKeyValue(
+                  label: 'Gói đã chọn',
+                  value: booking.packageName!,
+                  icon: Icons.card_travel_outlined,
+                ),
+              _DetailKeyValue(
+                label: 'Loại tour',
+                value: _tourTypeLabel(tour?.type),
+                icon: Icons.category_outlined,
+              ),
+              _DetailKeyValue(
+                label: 'Tổng chi phí',
+                value: totalDisplay != null
+                    ? _formatCurrency(totalDisplay)
+                    : 'Đang cập nhật',
+                icon: Icons.payments_outlined,
+              ),
+              if (discountAmount > 0)
+                _DetailKeyValue(
+                  label: 'Khuyến mãi',
+                  value: '-${_formatCurrency(discountAmount)}',
+                  icon: Icons.local_offer_outlined,
+                  valueColor: const Color(0xFF2E7D32),
+                ),
+              if (booking.balanceDue != null && booking.balanceDue! > 0)
+                _DetailKeyValue(
+                  label: 'Còn phải thanh toán',
+                  value: _formatCurrency(booking.balanceDue),
+                  icon: Icons.warning_amber_rounded,
+                  valueColor: const Color(0xFFE53935),
+                )
+              else if (booking.amountPaid != null && booking.amountPaid! > 0)
+                _DetailKeyValue(
+                  label: 'Đã thanh toán',
+                  value: _formatCurrency(booking.amountPaid),
+                  icon: Icons.verified_outlined,
+                ),
+              _DetailKeyValue(
+                label: 'Yêu cầu hộ chiếu/visa',
+                value: _passportRequirementLabel(tour),
+                icon: Icons.policy_outlined,
+              ),
+            ],
+          ),
+          if (booking.promotions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Khuyến mãi áp dụng',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: booking.promotions.map((promo) {
+                return Chip(
+                  label: Text('${promo.code} - ${_formatCurrency(promo.discountAmount)}'),
+                  backgroundColor: const Color(0xFFFFF1E0),
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList(),
+            ),
+          ],
+          if ((notes ?? '').isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Ghi chú của bạn',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            _DetailCalloutBox(text: notes!),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefundSummary(BuildContext context) {
+    if (booking.refundRequests.isEmpty) {
+      return const _DetailSectionCard(
+        title: 'Hoàn tiền',
+        icon: Icons.cached_outlined,
+        child: Text(
+          'Chưa có yêu cầu hoàn tiền. Nếu đơn đã thanh toán và bị hủy, hãy sử dụng nút "Yêu cầu hoàn tiền" phía trên.',
+        ),
+      );
+    }
+
+    final latest = booking.refundRequests.first;
+    return _DetailSectionCard(
+      title: 'Hoàn tiền',
+      icon: Icons.cached_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _DetailStatusChip(
+            label: _refundStatusLabel(latest.status),
+            color: const Color(0xFF2F80ED),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Số tiền: ${_formatCurrency(latest.amount)} (${latest.currency})',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          if (latest.updatedAt != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Cập nhật gần nhất: ${_dateFormatter.format(latest.updatedAt!)}',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: Colors.grey.shade600),
+            ),
+          ],
+          if ((latest.partnerMessage ?? latest.customerMessage) != null) ...[
+            const SizedBox(height: 12),
+            _DetailCalloutBox(
+              text: latest.partnerMessage ?? latest.customerMessage ?? '',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactInfo(BuildContext context) {
+    return _DetailSectionCard(
+      title: 'Thông tin liên hệ',
+      icon: Icons.contact_phone_outlined,
+      child: Wrap(
+        spacing: 18,
+        runSpacing: 16,
+        children: [
+          _DetailKeyValue(
+            label: 'Người liên hệ',
+            value: booking.contactName ?? 'Chưa cập nhật',
+            icon: Icons.person_outline,
+          ),
+          _DetailKeyValue(
+            label: 'Số điện thoại',
+            value: booking.contactPhone ?? 'Chưa cập nhật',
+            icon: Icons.phone_outlined,
+          ),
+          _DetailKeyValue(
+            label: 'Email',
+            value: booking.contactEmail ?? 'Chưa cập nhật',
+            icon: Icons.alternate_email,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPassengerSection(BuildContext context) {
+    if (booking.passengers.isEmpty) {
+      return const _DetailSectionCard(
+        title: 'Hành khách',
+        icon: Icons.groups_outlined,
+        child: Text(
+          'Chưa có thông tin hành khách. Vui lòng liên hệ hỗ trợ nếu cần cập nhật.',
+        ),
+      );
+    }
+
+    return _DetailSectionCard(
+      title: 'Hành khách',
+      icon: Icons.groups_outlined,
+      child: Column(
+        children: [
+          for (var i = 0; i < booking.passengers.length; i++) ...[
+            _PassengerTile(passenger: booking.passengers[i]),
+            if (i != booking.passengers.length - 1)
+              const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentHistory(BuildContext context) {
+    if (booking.payments.isEmpty) {
+      return const _DetailSectionCard(
+        title: 'Lịch sử thanh toán',
+        icon: Icons.receipt_long_outlined,
+        child: Text(
+          'Chưa có giao dịch nào được ghi nhận. Khi bạn thanh toán hoặc được hoàn lại, thông tin sẽ hiển thị ở đây.',
+        ),
+      );
+    }
+
+    return _DetailSectionCard(
+      title: 'Lịch sử thanh toán',
+      icon: Icons.receipt_long_outlined,
+      child: _PaymentBreakdown(payments: booking.payments),
+    );
+  }
+
+  Widget _buildInvoiceSection(BuildContext context) {
+    final invoice = booking.invoice;
+    if (invoice == null) {
+      return const _DetailSectionCard(
+        title: 'Hóa đơn điện tử',
+        icon: Icons.file_present_outlined,
+        child: Text(
+          'Chưa có hóa đơn được phát hành. Bạn có thể sử dụng nút "Xuất hóa đơn" phía trên khi đơn đã hoàn tất và thanh toán thành công.',
+        ),
+      );
+    }
+
+    return _DetailSectionCard(
+      title: 'Hóa đơn điện tử',
+      icon: Icons.file_present_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _DetailKeyValue(
+            label: 'Mã hóa đơn',
+            value: invoice.invoiceNumber,
+            icon: Icons.confirmation_number_outlined,
+          ),
+          const SizedBox(height: 12),
+          _DetailKeyValue(
+            label: 'Giá trị',
+            value: _formatCurrency(invoice.amount),
+            icon: Icons.price_check_outlined,
+          ),
+          const SizedBox(height: 12),
+          _DetailKeyValue(
+            label: 'Hình thức giao',
+            value: invoice.deliveryMethod == 'email' ? 'Gửi email' : 'Tải xuống',
+            icon: Icons.send_outlined,
+          ),
+          if (invoice.emailedAt != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Đã gửi lúc: ${_dateFormatter.format(invoice.emailedAt!)}',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: Colors.grey.shade600),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _paymentStatusLabel(String? raw) {
+    final normalized = raw?.toLowerCase() ?? '';
+    if (normalized.contains('paid') || normalized.contains('success')) {
+      return 'Đã thanh toán';
+    }
+    if (normalized.contains('pending')) return 'Chờ thanh toán';
+    if (normalized.contains('fail') || normalized.contains('cancel')) {
+      return 'Thanh toán thất bại';
+    }
+    if (normalized.contains('partial')) return 'Thanh toán một phần';
+    if (_isPaid) return 'Đã thanh toán';
+    return 'Chờ thanh toán';
+  }
+
+  Color _paymentStatusColor(String? raw) {
+    final normalized = raw?.toLowerCase() ?? '';
+    if (normalized.contains('paid') || normalized.contains('success')) {
+      return const Color(0xFF27AE60);
+    }
+    if (normalized.contains('pending')) {
+      return const Color(0xFFF2994A);
+    }
+    if (normalized.contains('fail') || normalized.contains('cancel')) {
+      return const Color(0xFFE74C3C);
+    }
+    if (normalized.contains('partial')) {
+      return const Color(0xFF2F80ED);
+    }
+    return const Color(0xFF4E54C8);
+  }
+
+  bool get _isPaid =>
+      (booking.amountPaid ?? 0) > 0 &&
+      (booking.balanceDue == null || booking.balanceDue! <= 0);
+
+  String _tourTypeLabel(String? raw) {
+    if (raw == null) return 'Đang cập nhật';
+    return raw.toLowerCase().contains('international')
+        ? 'Tour quốc tế'
+        : 'Tour nội địa';
+  }
+
+  String _passportRequirementLabel(TourSummary? tour) {
+    if (tour == null) return 'Theo quy định đối tác';
+    if (tour.requiresPassport || tour.requiresVisa) {
+      return 'Cần hộ chiếu/visa';
+    }
+    return 'Không yêu cầu';
+  }
+}
+
+
+class _DetailSectionCard extends StatelessWidget {
+  const _DetailSectionCard({
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.icon,
+    this.trailing,
+  });
+
+  final String title;
+  final String? subtitle;
+  final IconData? icon;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: const Color(0xFFFF7A18)),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailStatusChip extends StatelessWidget {
+  const _DetailStatusChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailKeyValue extends StatelessWidget {
+  const _DetailKeyValue({
+    required this.label,
+    required this.value,
+    this.icon,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final IconData? icon;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 160, maxWidth: 220),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 20, color: Colors.grey.shade500),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: valueColor ?? Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailCalloutBox extends StatelessWidget {
+  const _DetailCalloutBox({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFD9B5)),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
+}
+
+class _ResponsiveDetailRow extends StatelessWidget {
+  const _ResponsiveDetailRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 600 && children.length > 1) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < children.length; i++)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: i == children.length - 1 ? 0 : 16),
+                    child: children[i],
+                  ),
+                ),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < children.length; i++)
+              Padding(
+                padding: EdgeInsets.only(bottom: i == children.length - 1 ? 0 : 16),
+                child: children[i],
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PassengerTile extends StatelessWidget {
+  const _PassengerTile({required this.passenger});
+
+  final BookingPassenger passenger;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            passenger.fullName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _DetailMiniValue(
+                label: 'Loại khách',
+                value: passenger.type.toLowerCase().contains('child')
+                    ? 'Trẻ em'
+                    : 'Người lớn',
+              ),
+              if (passenger.gender != null && passenger.gender!.isNotEmpty)
+                _DetailMiniValue(
+                  label: 'Giới tính',
+                  value: passenger.gender!,
+                ),
+              if (passenger.dateOfBirth != null)
+                _DetailMiniValue(
+                  label: 'Ngày sinh',
+                  value: _dateFormatter.format(passenger.dateOfBirth!),
+                ),
+              if (passenger.documentNumber != null &&
+                  passenger.documentNumber!.isNotEmpty)
+                _DetailMiniValue(
+                  label: 'Giấy tờ',
+                  value: passenger.documentNumber!,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailMiniValue extends StatelessWidget {
+  const _DetailMiniValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+
 class _LabeledField extends StatelessWidget {
   const _LabeledField({
     required this.controller,
@@ -1464,6 +2570,7 @@ class _LabeledField extends StatelessWidget {
     this.keyboardType,
     this.maxLines = 1,
     this.validator,
+    this.readOnly = false,
   });
 
   final TextEditingController controller;
@@ -1472,6 +2579,7 @@ class _LabeledField extends StatelessWidget {
   final TextInputType? keyboardType;
   final int maxLines;
   final String? Function(String?)? validator;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -1488,6 +2596,7 @@ class _LabeledField extends StatelessWidget {
           keyboardType: keyboardType,
           maxLines: maxLines,
           validator: validator,
+          readOnly: readOnly,
           decoration: InputDecoration(
             hintText: hint,
             border: OutlineInputBorder(
@@ -1501,6 +2610,27 @@ class _LabeledField extends StatelessWidget {
     );
   }
 }
+
+class _RefundFormData {
+  const _RefundFormData({
+    required this.accountName,
+    required this.accountNumber,
+    required this.bankName,
+    required this.bankBranch,
+    required this.amount,
+    this.currency = 'VND',
+    this.note,
+  });
+
+  final String accountName;
+  final String accountNumber;
+  final String bankName;
+  final String bankBranch;
+  final double amount;
+  final String currency;
+  final String? note;
+}
+
 
 class _CoverImage extends StatelessWidget {
   const _CoverImage({this.imageUrl});
@@ -1540,5 +2670,9 @@ class _CoverImage extends StatelessWidget {
     );
   }
 }
+
+
+
+
 
 

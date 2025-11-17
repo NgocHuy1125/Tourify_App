@@ -51,13 +51,16 @@ Future<void> main() async {
         Provider<HomeRepository>(create: (_) => HomeRepositoryImpl()),
         Provider<RecentTourStorage>(create: (_) => RecentTourStorage()),
         Provider<AnalyticsRepository>(create: (_) => AnalyticsRepository()),
-        Provider<NotificationRepository>(
-          create: (_) => NotificationRepositoryImpl(),
-        ),
         Provider<WishlistRepository>(create: (_) => WishlistRepositoryImpl()),
         Provider<AccountRepository>(create: (_) => AccountRepositoryImpl()),
         Provider<CartRepository>(create: (_) => CartRepositoryImpl()),
         Provider<BookingRepository>(create: (_) => BookingRepositoryImpl()),
+        Provider<NotificationRepository>(
+          create:
+              (context) => NotificationRepositoryImpl(
+                bookingRepository: context.read<BookingRepository>(),
+              ),
+        ),
 
         // Notifiers & Presenters
         ChangeNotifierProvider.value(value: authNotifier),

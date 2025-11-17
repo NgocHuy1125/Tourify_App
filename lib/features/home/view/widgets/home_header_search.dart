@@ -90,12 +90,16 @@ class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
               clipBehavior: Clip.none,
               children: [
                 IconButton(
-                  onPressed:
-                      () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const NotificationCenterScreen(),
-                        ),
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationCenterScreen(),
                       ),
+                    );
+                    if (context.mounted) {
+                      presenter.refreshUnreadCount();
+                    }
+                  },
                   icon: const Icon(
                     Icons.notifications_outlined,
                     color: Colors.black54,

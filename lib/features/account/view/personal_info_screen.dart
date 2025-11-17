@@ -68,18 +68,98 @@ class PersonalInfoScreen extends StatelessWidget {
                       children: [
                         _InfoTile(
                           icon: Icons.home_outlined,
-                          label: 'Địa chỉ',
-                          value: _valueOrPlaceholder(profile?.address),
+                          label: 'Địa chỉ dòng 1',
+                          value: _valueOrPlaceholder(profile?.addressLine1),
                           actionLabel: 'Chỉnh sửa',
-                          onTap:
-                              () => _editAddress(context, presenter, profile),
+                          onTap: () => _editProfileField(
+                            context,
+                            presenter,
+                            title: 'Địa chỉ dòng 1',
+                            key: 'address_line1',
+                            initialValue: profile?.addressLine1 ?? '',
+                            hintText: 'Số nhà, tên đường...',
+                          ),
+                        ),
+                        _InfoTile(
+                          icon: Icons.maps_home_work_outlined,
+                          label: 'Địa chỉ dòng 2',
+                          value: _valueOrPlaceholder(profile?.addressLine2),
+                          actionLabel: 'Chỉnh sửa',
+                          onTap: () => _editProfileField(
+                            context,
+                            presenter,
+                            title: 'Địa chỉ dòng 2',
+                            key: 'address_line2',
+                            initialValue: profile?.addressLine2 ?? '',
+                            hintText: 'Tòa nhà, khu phố (nếu có)',
+                          ),
+                        ),
+                        _InfoTile(
+                          icon: Icons.location_city_outlined,
+                          label: 'Thành phố',
+                          value: _valueOrPlaceholder(profile?.city),
+                          actionLabel: 'Chỉnh sửa',
+                          onTap: () => _editProfileField(
+                            context,
+                            presenter,
+                            title: 'Thành phố',
+                            key: 'city',
+                            initialValue: profile?.city ?? '',
+                          ),
+                        ),
+                        _InfoTile(
+                          icon: Icons.map_outlined,
+                          label: 'Tỉnh / Bang',
+                          value: _valueOrPlaceholder(profile?.state),
+                          actionLabel: 'Chỉnh sửa',
+                          onTap: () => _editProfileField(
+                            context,
+                            presenter,
+                            title: 'Tỉnh / Bang',
+                            key: 'state',
+                            initialValue: profile?.state ?? '',
+                          ),
+                        ),
+                        _InfoTile(
+                          icon: Icons.markunread_mailbox_outlined,
+                          label: 'Mã bưu chính',
+                          value: _valueOrPlaceholder(profile?.postalCode),
+                          actionLabel: 'Chỉnh sửa',
+                          onTap: () => _editProfileField(
+                            context,
+                            presenter,
+                            title: 'Mã bưu chính',
+                            key: 'postal_code',
+                            keyboardType: TextInputType.number,
+                            initialValue: profile?.postalCode ?? '',
+                          ),
+                        ),
+                        _InfoTile(
+                          icon: Icons.public_outlined,
+                          label: 'Quốc gia',
+                          value: _valueOrPlaceholder(profile?.country),
+                          actionLabel: 'Chỉnh sửa',
+                          onTap: () => _editProfileField(
+                            context,
+                            presenter,
+                            title: 'Quốc gia',
+                            key: 'country',
+                            initialValue: profile?.country ?? '',
+                          ),
+                        ),
+                        _InfoTile(
+                          icon: Icons.home_work_outlined,
+                          label: 'Địa chỉ hiển thị',
+                          value: _valueOrPlaceholder(profile?.address),
+                          helper: 'Tổng hợp từ các trường địa chỉ phía trên.',
+                          actionLabel: 'Chỉnh sửa',
+                          onTap: () => _editAddress(context, presenter, profile),
                         ),
                         _InfoTile(
                           icon: Icons.phone_android_outlined,
                           label: 'Số điện thoại',
                           value: _valueOrPlaceholder(profile?.phone),
-                          helper:
-                              'Bạn có thể đăng nhập bằng số điện thoại hoặc email.',
+                          helper: 'Bạn có thể đăng nhập bằng số điện thoại hoặc email.',
                           actionLabel: 'Chỉnh sửa',
                           onTap: () => _editPhone(context, presenter, profile),
                         ),
@@ -536,6 +616,26 @@ Future<void> _editAddress(
   );
   if (result == null) return;
   await _submitUpdate(context, presenter, {'address': result});
+}
+
+Future<void> _editProfileField(
+  BuildContext context,
+  AccountPresenter presenter, {
+  required String title,
+  required String key,
+  String initialValue = '',
+  String? hintText,
+  TextInputType keyboardType = TextInputType.text,
+}) async {
+  final result = await _showTextFieldSheet(
+    context,
+    title: title,
+    initialValue: initialValue,
+    hintText: hintText,
+    keyboardType: keyboardType,
+  );
+  if (result == null) return;
+  await _submitUpdate(context, presenter, {key: result});
 }
 
 Future<String?> _showTextFieldSheet(

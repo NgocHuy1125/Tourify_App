@@ -374,5 +374,19 @@ class TripsPresenter with ChangeNotifier {
       return null;
     }
   }
+
+  Future<BookingCancellationResult?> cancelBooking(String bookingId) async {
+    try {
+      final result = await _repository.cancelBooking(bookingId);
+      await refresh();
+      _actionError = '';
+      notifyListeners();
+      return result;
+    } catch (error) {
+      _actionError = error.toString();
+      notifyListeners();
+      return null;
+    }
+  }
 }
 
