@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:tourify_app/core/utils/auth_guard.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
 import 'package:tourify_app/features/cart/view/cart_screen.dart';
 import 'package:tourify_app/features/search/view/search_screen.dart';
@@ -43,7 +44,12 @@ class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
               clipBehavior: Clip.none,
               children: [
                 IconButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    final allowed = await ensureLoggedIn(
+                      context,
+                      message: 'Vui lòng đăng nhập để xem giỏ hàng.',
+                    );
+                    if (!allowed) return;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -91,6 +97,11 @@ class HomeHeaderSearch extends StatelessWidget implements PreferredSizeWidget {
               children: [
                 IconButton(
                   onPressed: () async {
+                    final allowed = await ensureLoggedIn(
+                      context,
+                      message: 'Vui lòng đăng nhập để xem thông báo.',
+                    );
+                    if (!allowed) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const NotificationCenterScreen(),

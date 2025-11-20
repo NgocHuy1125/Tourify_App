@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:tourify_app/core/notifiers/auth_notifier.dart';
-import 'package:tourify_app/features/auth/view/auth_screen.dart';
 import 'package:tourify_app/main_screen.dart';
 
 class MyApp extends StatelessWidget {
@@ -86,11 +83,7 @@ class MyApp extends StatelessWidget {
         ),
         iconTheme: const IconThemeData(color: _brand),
       ),
-      home: Consumer<AuthNotifier>(
-        builder:
-            (_, auth, __) =>
-                auth.isLoggedIn ? const MainScreen() : const AuthScreen(),
-      ),
+      home: const MainScreen(),
     );
   }
 }

@@ -5,6 +5,8 @@ import 'package:tourify_app/features/wishlist/model/wishlist_model.dart';
 import 'package:tourify_app/features/wishlist/presenter/wishlist_presenter.dart';
 import 'package:tourify_app/features/wishlist/view/wishlist_compare_screen.dart';
 import 'package:tourify_app/features/wishlist/view/widgets/wish_tour_grid_card.dart';
+import 'package:tourify_app/core/notifiers/auth_notifier.dart';
+import 'package:tourify_app/core/widgets/login_required_view.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -14,15 +16,36 @@ class WishlistScreen extends StatefulWidget {
 }
 
 class _WishlistScreenState extends State<WishlistScreen> {
+  late final AuthNotifier _authNotifier;
+  late final VoidCallback _authListener;
+
   @override
   void initState() {
     super.initState();
+    _authNotifier = context.read<AuthNotifier>();
+    _authListener = _handleAuthChanged;
+    _authNotifier.addListener(_authListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final presenter = context.read<WishlistPresenter>();
-      if (presenter.state == WishlistState.initial) {
+      _handleAuthChanged();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authNotifier.removeListener(_authListener);
+    super.dispose();
+  }
+
+  void _handleAuthChanged() {
+    final presenter = context.read<WishlistPresenter>();
+    if (_authNotifier.isLoggedIn) {
+      if (presenter.state == WishlistState.initial ||
+          presenter.state == WishlistState.error) {
         presenter.loadWishlist();
       }
-    });
+    } else {
+      presenter.resetForGuest();
+    }
   }
 
   Future<void> _handleCompare(BuildContext context) async {
@@ -61,9 +84,16 @@ class _WishlistScreenState extends State<WishlistScreen> {
   @override
   Widget build(BuildContext context) {
     final presenter = context.watch<WishlistPresenter>();
+    final isLoggedIn = context.watch<AuthNotifier>().isLoggedIn;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    final body = _buildBody(presenter);
+    final Widget body = isLoggedIn
+        ? _buildBody(presenter)
+        : const LoginRequiredView(
+            title: 'Đăng nhập để xem tour yêu thích',
+            message:
+                'Bạn cần đăng nhập để lưu và xem danh sách tour yêu thích.',
+          );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -80,7 +110,8 @@ class _WishlistScreenState extends State<WishlistScreen> {
         ),
         centerTitle: false,
         actions:
-            presenter.items.isNotEmpty &&
+            isLoggedIn &&
+                    presenter.items.isNotEmpty &&
                     presenter.state == WishlistState.success
                 ? [
                   IconButton(
@@ -96,7 +127,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
         child: Stack(
           children: [
             Positioned.fill(child: body),
-            if (presenter.hasCompareSelection)
+            if (isLoggedIn && presenter.hasCompareSelection)
               Positioned(
                 left: 16,
                 right: 16,

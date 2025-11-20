@@ -22,7 +22,7 @@ abstract class HomeRepository {
   Future<List<DestinationHighlight>> fetchDestinationHighlights({
     int limit = 10,
   });
-  Future<List<RecommendationItem>> fetchRecommendations({int limit = 10});
+  Future<RecommendationPayload> fetchRecommendations({int limit = 10});
   Future<List<RecentTourItem>> fetchRecentTours({int limit = 10});
   Future<ChatbotReply> sendChatbotMessage(
     String message, {
@@ -190,25 +190,28 @@ class HomeRepositoryImpl implements HomeRepository {
   }
 
   @override
-  Future<List<RecommendationItem>> fetchRecommendations({
+  Future<RecommendationPayload> fetchRecommendations({
     int limit = 10,
   }) async {
     final res = await _http.get('/api/recommendations?limit=$limit');
-    if (res.statusCode == 401) {
-      return const [];
-    }
-    if (res.statusCode != 200) {
-      return const [];
+    if (res.statusCode == 401 || res.statusCode != 200) {
+      return RecommendationPayload.empty();
     }
     final payload = json.decode(res.body);
     final list = _extractList(
       payload,
       preferredKeys: const ['data', 'items', 'recommendations'],
     );
-    return list
+    final items = list
         .whereType<Map>()
         .map((e) => RecommendationItem.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+    final metaMap =
+        payload is Map && payload['meta'] is Map
+            ? Map<String, dynamic>.from(payload['meta'] as Map)
+            : <String, dynamic>{};
+    final meta = RecommendationMeta.fromJson(metaMap);
+    return RecommendationPayload(items: items, meta: meta);
   }
 
   @override

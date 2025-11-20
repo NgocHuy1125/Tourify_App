@@ -1,6 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:tourify_app/core/notifiers/auth_notifier.dart';
+import 'package:tourify_app/core/widgets/login_required_view.dart';
 import 'package:tourify_app/features/booking/view/booking_checkout_page.dart';
 import 'package:tourify_app/features/cart/model/cart_model.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
@@ -16,23 +18,44 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  late final AuthNotifier _authNotifier;
+  late final VoidCallback _authListener;
   late final NumberFormat _currency = NumberFormat.currency(
     locale: 'vi_VN',
-    symbol: '₫',
+    symbol: '?',
     decimalDigits: 0,
   );
 
   @override
   void initState() {
     super.initState();
+    _authNotifier = context.read<AuthNotifier>();
+    _authListener = _handleAuthChanged;
+    _authNotifier.addListener(_authListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CartPresenter>().loadCart();
+      _handleAuthChanged();
     });
+  }
+
+  @override
+  void dispose() {
+    _authNotifier.removeListener(_authListener);
+    super.dispose();
+  }
+
+  void _handleAuthChanged() {
+    final presenter = context.read<CartPresenter>();
+    if (_authNotifier.isLoggedIn) {
+      presenter.loadCart();
+    } else {
+      presenter.reset();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final presenter = context.watch<CartPresenter>();
+    final isLoggedIn = context.watch<AuthNotifier>().isLoggedIn;
     final hasItems = presenter.entries.isNotEmpty;
 
     return Scaffold(
@@ -47,7 +70,7 @@ class _CartScreenState extends State<CartScreen> {
         ),
         centerTitle: false,
         actions:
-            hasItems
+            isLoggedIn && hasItems
                 ? [
                   TextButton(
                     onPressed:
@@ -69,7 +92,15 @@ class _CartScreenState extends State<CartScreen> {
         child: Column(
           children: [
             Expanded(
-              child: _CartBody(presenter: presenter, currency: _currency),
+              child:
+                  isLoggedIn
+                      ? _CartBody(presenter: presenter, currency: _currency)
+                      : const LoginRequiredView(
+                          title: 'Đăng nhập để xem giỏ hàng',
+                          message:
+                              'Vui lòng đăng nhập để xem và quản lý giỏ hàng.',
+                          icon: Icons.shopping_bag_outlined,
+                        ),
             ),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),

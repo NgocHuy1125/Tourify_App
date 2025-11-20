@@ -172,6 +172,15 @@ class WishlistPresenter with ChangeNotifier {
     await _loadTrendingTours(limit: limit);
   }
 
+  void resetForGuest() {
+    _state = WishlistState.initial;
+    _items = [];
+    _compareSelection.clear();
+    _errorMessage = '';
+    _isOnboarding = false;
+    notifyListeners();
+  }
+
   Future<void> _loadTrendingTours({int limit = 6}) async {
     _isTrendingLoading = true;
     notifyListeners();

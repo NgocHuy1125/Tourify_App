@@ -219,4 +219,12 @@ class CartPresenter with ChangeNotifier {
             .toList();
     _totalPrice = data.totalPrice;
   }
+
+  void reset() {
+    _state = CartState.initial;
+    _errorMessage = '';
+    _entries = [];
+    _totalPrice = 0;
+    notifyListeners();
+  }
 }

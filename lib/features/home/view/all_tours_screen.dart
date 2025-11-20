@@ -5,13 +5,15 @@ import 'package:tourify_app/features/home/model/home_models.dart';
 import 'package:tourify_app/features/home/model/home_repository.dart';
 import 'package:tourify_app/features/home/presenter/home_presenter.dart';
 import 'package:tourify_app/features/home/view/widgets/tour_card_large.dart';
+import 'package:tourify_app/features/search/model/tour_search_filters.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/tour/view/tour_detail_page.dart';
 
 class AllToursScreen extends StatefulWidget {
-  const AllToursScreen({super.key, this.category});
+  const AllToursScreen({super.key, this.category, this.destination});
 
   final CategoryItem? category;
+  final String? destination;
 
   @override
   State<AllToursScreen> createState() => _AllToursScreenState();
@@ -35,6 +37,15 @@ class _AllToursScreenState extends State<AllToursScreen> {
   }
 
   Future<List<TourSummary>> _loadTours() {
+    final destination = widget.destination?.trim();
+    if (destination != null && destination.isNotEmpty) {
+      return _repository.searchTours(
+        TourSearchFilters(
+          destinations: [destination],
+          perPage: 100,
+        ),
+      );
+    }
     final category = widget.category;
     if (category != null) {
       return _repository.fetchToursByCategory(
@@ -50,7 +61,7 @@ class _AllToursScreenState extends State<AllToursScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tất cả tour'),
+        title: Text(_appBarTitle()),
       ),
       body: FutureBuilder<List<TourSummary>>(
         future: _future,
@@ -62,7 +73,7 @@ class _AllToursScreenState extends State<AllToursScreen> {
           if (snapshot.hasError) {
             return _ErrorMessage(
               message:
-                  'Không thể tải danh sách tour.\n${snapshot.error ?? ''}',
+                  'Kh�ng th? t?i danh s�ch tour.\n${snapshot.error ?? ''}',
               onRetry: _reload,
             );
           }
@@ -70,7 +81,7 @@ class _AllToursScreenState extends State<AllToursScreen> {
           final tours = snapshot.data ?? [];
           if (tours.isEmpty) {
             return const _EmptyMessage(
-              message: 'Chưa có tour nào được hiển thị.',
+              message: 'Chua c� tour n�o du?c hi?n th?.',
             );
           }
 
@@ -114,6 +125,18 @@ class _AllToursScreenState extends State<AllToursScreen> {
       ),
     );
   }
+
+  String _appBarTitle() {
+    final destination = widget.destination?.trim();
+    if (destination != null && destination.isNotEmpty) {
+      return 'Tour tại $destination';
+    }
+    final category = widget.category;
+    if (category != null && category.name.isNotEmpty) {
+      return category.name;
+    }
+    return 'Tất cả tour';
+  }
 }
 
 class _ErrorMessage extends StatelessWidget {
@@ -138,7 +161,7 @@ class _ErrorMessage extends StatelessWidget {
           FilledButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
-            label: const Text('Thử lại'),
+            label: const Text('Th? l?i'),
           ),
         ],
       ),
@@ -164,3 +187,4 @@ class _EmptyMessage extends StatelessWidget {
     );
   }
 }
+

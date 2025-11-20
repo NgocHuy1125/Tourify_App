@@ -1034,8 +1034,8 @@ class _PaymentMethod {
 
   static const offline = _PaymentMethod(
     id: 'offline',
-    title: 'Thanh toán tại quầy',
-    description: 'Giữ chỗ 24 giờ và thanh toán trực tiếp tại văn phòng.',
+    title: 'Thanh toán sau',
+    description: 'Giữ chỗ 24 giờ và thanh toán sau qua Sepay hoặc tại quầy.',
     icon: Icons.storefront_outlined,
   );
 
@@ -1127,7 +1127,7 @@ class PaymentQRCodeSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(26),
                 ),
               ),
-              child: const Text('Tôi đã thanh toán'),
+              child: const Text('Xác nhận thanh toán'),
             ),
           ),
         ],

@@ -3,13 +3,24 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
+import 'package:tourify_app/core/notifiers/auth_notifier.dart';
+import 'package:tourify_app/core/widgets/login_required_view.dart';
 import 'package:tourify_app/features/booking/model/booking_model.dart';
 import 'package:tourify_app/features/booking/presenter/trips_presenter.dart';
+import 'package:tourify_app/features/booking/view/booking_checkout_page.dart';
 import 'package:tourify_app/features/home/view/all_tours_screen.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 import 'package:tourify_app/features/tour/view/tour_detail_page.dart';
 
 enum _ReviewOutcome { created, updated, deleted }
+
+enum _BookingStage {
+  awaitingPayment,
+  awaitingConfirmation,
+  completed,
+  cancelled,
+  processing,
+}
 
 final NumberFormat _vndFormatter = NumberFormat.currency(
   locale: 'vi_VN',
@@ -35,27 +46,88 @@ String _filterLabel(String key) {
   }
 }
 
-String _statusLabel(String status, {String? paymentStatus}) {
-  final payment = paymentStatus?.toLowerCase() ?? '';
-  if (payment.contains('paid') || payment.contains('success')) {
-    return 'Đã thanh toán';
+_BookingStage _bookingStageFor(BookingSummary booking) {
+  final status = booking.status.toLowerCase();
+  final payment = booking.paymentStatus?.toLowerCase() ?? '';
+  final hasPaid =
+      _isBookingPaid(booking) ||
+      payment.contains('paid') ||
+      payment.contains('success') ||
+      payment.contains('refunded');
+
+  if (status.contains('cancel')) return _BookingStage.cancelled;
+  if (status.contains('complete') || status.contains('finish')) {
+    return _BookingStage.completed;
   }
-  if (payment.contains('pending') || payment.contains('await')) {
-    return 'Chờ thanh toán';
+
+  if (status.contains('pending') || status.contains('await')) {
+    if (hasPaid) return _BookingStage.awaitingConfirmation;
+    return _BookingStage.awaitingPayment;
   }
-  final normalized = status.toLowerCase();
-  if (normalized.contains('confirm')) return 'Đã xác nhận';
-  if (normalized.contains('complete') || normalized.contains('finish')) {
-    return 'Hoàn thành';
+
+  if (status.contains('confirm') || status.contains('process')) {
+    if (hasPaid) return _BookingStage.awaitingConfirmation;
+    return _BookingStage.awaitingPayment;
   }
-  if (normalized.contains('cancel')) return 'Đã hủy';
-  if (normalized.contains('process') || normalized.contains('review')) {
-    return 'Đang xử lý';
+
+  if (status.contains('cancell') && payment.contains('pending')) {
+    return _BookingStage.awaitingPayment;
   }
-  if (normalized.contains('pending') || normalized.contains('await')) {
-    return 'Chờ thanh toán';
+
+  if (!hasPaid &&
+      (payment.contains('pending') ||
+          payment.contains('await') ||
+          payment.contains('unpaid') ||
+          payment.isEmpty)) {
+    return _BookingStage.awaitingPayment;
   }
-  return status;
+
+  if (hasPaid) return _BookingStage.awaitingConfirmation;
+  return _BookingStage.processing;
+}
+
+bool _isBookingPaid(BookingSummary booking) {
+  final paymentStatus = booking.paymentStatus?.toLowerCase() ?? '';
+  if (paymentStatus.contains('paid') || paymentStatus.contains('success')) {
+    return true;
+  }
+  if ((booking.amountPaid ?? 0) > 0) return true;
+  return booking.payments.any((payment) {
+    final status = payment.status.toLowerCase();
+    return status.contains('paid') ||
+        status.contains('success') ||
+        status.contains('complete');
+  });
+}
+
+String _bookingStageLabel(_BookingStage stage) {
+  switch (stage) {
+    case _BookingStage.awaitingPayment:
+      return 'Chờ thanh toán';
+    case _BookingStage.awaitingConfirmation:
+      return 'Chờ xác nhận';
+    case _BookingStage.completed:
+      return 'Hoàn thành';
+    case _BookingStage.cancelled:
+      return 'Đã hủy';
+    case _BookingStage.processing:
+      return 'Đang xử lý';
+  }
+}
+
+Color _bookingStageColor(_BookingStage stage) {
+  switch (stage) {
+    case _BookingStage.awaitingPayment:
+      return const Color(0xFFE67E22);
+    case _BookingStage.awaitingConfirmation:
+      return const Color(0xFFF2994A);
+    case _BookingStage.completed:
+      return const Color(0xFF27AE60);
+    case _BookingStage.cancelled:
+      return const Color(0xFFE74C3C);
+    case _BookingStage.processing:
+      return const Color(0xFF2F80ED);
+  }
 }
 
 String _formatCurrency(double? amount) {
@@ -143,16 +215,46 @@ class TripsScreen extends StatefulWidget {
 }
 
 class _TripsScreenState extends State<TripsScreen> {
+  late final AuthNotifier _authNotifier;
+  late final VoidCallback _authListener;
+
   @override
   void initState() {
     super.initState();
+    _authNotifier = context.read<AuthNotifier>();
+    _authListener = _onAuthChanged;
+    _authNotifier.addListener(_authListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TripsPresenter>().loadInitial();
+      _onAuthChanged();
     });
   }
 
   @override
+  void dispose() {
+    _authNotifier.removeListener(_authListener);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    final presenter = context.read<TripsPresenter>();
+    if (_authNotifier.isLoggedIn) {
+      presenter.loadInitial();
+    } else {
+      presenter.resetForGuest();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isLoggedIn = context.watch<AuthNotifier>().isLoggedIn;
+    if (!isLoggedIn) {
+      return const LoginRequiredView(
+        title: 'Đăng nhập để xem chuyến đi',
+        message:
+            'Vui lòng đăng nhập để theo dõi đơn hàng và yêu cầu của bạn.',
+        icon: Icons.card_travel_outlined,
+      );
+    }
     final presenter = context.watch<TripsPresenter>();
     final bookings = presenter.bookings;
     final isLoading = presenter.isLoading && bookings.isEmpty;
@@ -572,11 +674,9 @@ class _BookingCard extends StatelessWidget {
     final tourId = tour?.id ?? '';
     final destination = tour?.destination ?? '';
     final reference = booking.reference;
-    final statusText = _statusLabel(
-      booking.status,
-      paymentStatus: booking.paymentStatus,
-    );
-    final statusColor = presenter.statusColor(booking.status);
+    final stage = _bookingStageFor(booking);
+    final statusText = _bookingStageLabel(stage);
+    final statusColor = _bookingStageColor(stage);
     final review = booking.review;
     final canReview = booking.canReview || review != null;
     final hasTourId = tourId.isNotEmpty;
@@ -766,6 +866,15 @@ class _BookingCard extends StatelessWidget {
                 label: const Text('Xem tour'),
               ),
             ),
+            if (_canTriggerPayLater(booking))
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handlePayLater(context),
+                  icon: const Icon(Icons.payments_outlined, size: 18),
+                  label: const Text('Thanh toán'),
+                ),
+              ),
             if (canReview)
               SizedBox(
                 width: double.infinity,
@@ -900,18 +1009,21 @@ class _BookingCard extends StatelessWidget {
     return true;
   }
 
-  bool _isPaidBooking(BookingSummary booking) {
-    final paymentStatus = booking.paymentStatus?.toLowerCase() ?? '';
-    if (paymentStatus.contains('paid') || paymentStatus.contains('success')) {
+  bool _canTriggerPayLater(BookingSummary booking) {
+    if (booking.status.toLowerCase().contains('cancel')) return false;
+    if (_isBookingPaid(booking)) return false;
+    final payment = booking.paymentStatus?.toLowerCase() ?? '';
+    if (payment.contains('unpaid') ||
+        payment.contains('pending') ||
+        payment.contains('await')) {
       return true;
     }
-    if ((booking.amountPaid ?? 0) > 0) return true;
-    return booking.payments.any((payment) {
-      final status = payment.status.toLowerCase();
-      return status.contains('paid') ||
-          status.contains('success') ||
-          status.contains('complete');
-    });
+    if (payment.isEmpty &&
+        (booking.amountPaid ?? 0) <= 0 &&
+        (booking.balanceDue == null || booking.balanceDue! > 0)) {
+      return true;
+    }
+    return false;
   }
 
   Future<void> _openRefundRequestSheet(BuildContext context) async {
@@ -1447,7 +1559,7 @@ class _BookingCard extends StatelessWidget {
 
   bool _requiresRefundBeforeCancel(BookingSummary booking) {
     final status = booking.status.toLowerCase();
-    return _isPaidBooking(booking) &&
+    return _isBookingPaid(booking) &&
         (status.contains('confirm') || status.contains('processing') || status.contains('await'));
   }
 
@@ -1565,7 +1677,7 @@ class _BookingCard extends StatelessWidget {
       return;
     }
 
-    if (_isPaidBooking(booking)) {
+    if (_isBookingPaid(booking)) {
       await _openRefundRequestSheet(context);
     } else {
       messenger.showSnackBar(SnackBar(content: Text(successResult.message)));
@@ -1586,7 +1698,110 @@ class _BookingCard extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _handlePayLater(BuildContext context) async {
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    BookingPaymentIntent? intent;
+    try {
+      intent = await presenter.payLater(booking.id);
+    } finally {
+      if (rootNavigator.mounted) {
+        rootNavigator.pop();
+      }
+    }
+
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (intent == null) {
+      final errorMessage =
+          presenter.actionError.isNotEmpty
+              ? _localizedError(presenter.actionError)
+              : 'Khong the tao lien ket thanh toan. Vui long thu lai.';
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage)));
+      return;
+    }
+
+    final BookingPaymentIntent confirmedIntent = intent;
+    final paymentUrl = confirmedIntent.paymentUrl?.trim() ?? '';
+    final paymentQr = confirmedIntent.paymentQrUrl?.trim() ?? '';
+
+    if (paymentUrl.isEmpty && paymentQr.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            confirmedIntent.status.isNotEmpty
+                ? confirmedIntent.status
+                : 'Da tao yeu cau thanh toan. Vui long kiem tra email.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final subtotal =
+        booking.totalAmount ?? booking.totalPrice ?? confirmedIntent.amount;
+
+    final bool? acknowledged = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder:
+          (_) => PaymentQRCodeSheet(
+                amount: confirmedIntent.amount,
+                subtotal: subtotal,
+                discountTotal: booking.discountTotal,
+                promotions: booking.promotions,
+                bookingId: booking.id,
+                qrImageUrl: paymentQr.isNotEmpty ? paymentQr : null,
+                paymentUrl: paymentUrl.isNotEmpty ? paymentUrl : null,
+              ),
+    );
+
+    if (acknowledged == true) {
+      final status = await presenter.refreshPaymentStatus(booking.id);
+      if (!context.mounted) return;
+      if (status != null) {
+        final normalized = status.status.toLowerCase();
+        if (normalized.contains('paid') || normalized.contains('success')) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Thanh toan da duoc ghi nhan. Vui long cho xac nhan.',
+              ),
+            ),
+          );
+        } else if (normalized.contains('pending')) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Thanh toan dang duoc xu ly. Vui long cho them it phut.',
+              ),
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Trang thai thanh toan: ${status.status}')),
+          );
+        }
+      } else {
+        final fallback =
+            presenter.actionError.isNotEmpty
+                ? _localizedError(presenter.actionError)
+                : 'Khong kiem tra duoc trang thai thanh toan. Vui long thu lai.';
+        messenger.showSnackBar(SnackBar(content: Text(fallback)));
+      }
+    }
+  }
 }
+
 class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.icon,
@@ -1915,22 +2130,9 @@ class BookingDetailPage extends StatelessWidget {
           : 'Booking ${booking.id}',
       subtitle: tour?.title ?? 'Tour của bạn',
       icon: Icons.assignment_outlined,
-      trailing: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _DetailStatusChip(
-            label: _statusLabel(
-              booking.status,
-              paymentStatus: booking.paymentStatus,
-            ),
-            color: presenter.statusColor(booking.status),
-          ),
-          const SizedBox(height: 8),
-          _DetailStatusChip(
-            label: _paymentStatusLabel(booking.paymentStatus),
-            color: _paymentStatusColor(booking.paymentStatus),
-          ),
-        ],
+      trailing: _DetailStatusChip(
+        label: _bookingStageLabel(_bookingStageFor(booking)),
+        color: _bookingStageColor(_bookingStageFor(booking)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2158,13 +2360,24 @@ class BookingDetailPage extends StatelessWidget {
 
   Widget _buildInvoiceSection(BuildContext context) {
     final invoice = booking.invoice;
+    final status = booking.status.toLowerCase();
+    final payment = booking.paymentStatus?.toLowerCase() ?? '';
+    final canRequestInvoice =
+        status.contains('complete') && payment.contains('paid');
+
     if (invoice == null) {
-      return const _DetailSectionCard(
-        title: 'Hóa đơn điện tử',
-        icon: Icons.file_present_outlined,
-        child: Text(
-          'Chưa có hóa đơn được phát hành. Bạn có thể sử dụng nút "Xuất hóa đơn" phía trên khi đơn đã hoàn tất và thanh toán thành công.',
-        ),
+      if (!canRequestInvoice) {
+        return const _DetailSectionCard(
+          title: 'Hóa đơn điện tử',
+          icon: Icons.file_present_outlined,
+          child: Text(
+            'Chưa có hóa đơn được phát hành. Bạn có thể sử dụng nút "Xuất hóa đơn" phía trên khi đơn đã hoàn tất và thanh toán thành công.',
+          ),
+        );
+      }
+      return _InvoiceRequestCard(
+        booking: booking,
+        presenter: presenter,
       );
     }
 
@@ -2205,41 +2418,6 @@ class BookingDetailPage extends StatelessWidget {
       ),
     );
   }
-
-  String _paymentStatusLabel(String? raw) {
-    final normalized = raw?.toLowerCase() ?? '';
-    if (normalized.contains('paid') || normalized.contains('success')) {
-      return 'Đã thanh toán';
-    }
-    if (normalized.contains('pending')) return 'Chờ thanh toán';
-    if (normalized.contains('fail') || normalized.contains('cancel')) {
-      return 'Thanh toán thất bại';
-    }
-    if (normalized.contains('partial')) return 'Thanh toán một phần';
-    if (_isPaid) return 'Đã thanh toán';
-    return 'Chờ thanh toán';
-  }
-
-  Color _paymentStatusColor(String? raw) {
-    final normalized = raw?.toLowerCase() ?? '';
-    if (normalized.contains('paid') || normalized.contains('success')) {
-      return const Color(0xFF27AE60);
-    }
-    if (normalized.contains('pending')) {
-      return const Color(0xFFF2994A);
-    }
-    if (normalized.contains('fail') || normalized.contains('cancel')) {
-      return const Color(0xFFE74C3C);
-    }
-    if (normalized.contains('partial')) {
-      return const Color(0xFF2F80ED);
-    }
-    return const Color(0xFF4E54C8);
-  }
-
-  bool get _isPaid =>
-      (booking.amountPaid ?? 0) > 0 &&
-      (booking.balanceDue == null || booking.balanceDue! <= 0);
 
   String _tourTypeLabel(String? raw) {
     if (raw == null) return 'Đang cập nhật';
@@ -2330,6 +2508,204 @@ class _DetailSectionCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _InvoiceRequestCard extends StatefulWidget {
+  const _InvoiceRequestCard({
+    required this.booking,
+    required this.presenter,
+  });
+
+  final BookingSummary booking;
+  final TripsPresenter presenter;
+
+  @override
+  State<_InvoiceRequestCard> createState() => _InvoiceRequestCardState();
+}
+
+class _InvoiceRequestCardState extends State<_InvoiceRequestCard> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _taxCtrl;
+  late final TextEditingController _addressCtrl;
+  late final TextEditingController _emailCtrl;
+  String _deliveryMethod = 'download';
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final booking = widget.booking;
+    _nameCtrl = TextEditingController(text: booking.contactName ?? '');
+    _taxCtrl = TextEditingController();
+    _addressCtrl = TextEditingController(text: booking.tour?.destination ?? '');
+    _emailCtrl = TextEditingController(text: booking.contactEmail ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _taxCtrl.dispose();
+    _addressCtrl.dispose();
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _DetailSectionCard(
+      title: 'Hóa đơn điện tử',
+      subtitle: 'Điền thông tin để yêu cầu Tourify phát hành hóa đơn',
+      icon: Icons.file_present_outlined,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Tên đơn vị/Khách hàng',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập tên khách hàng';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _taxCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Mã số thuế',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _addressCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Địa chỉ',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập địa chỉ';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _deliveryMethod,
+              decoration: const InputDecoration(
+                labelText: 'Phương thức nhận hóa đơn',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'download',
+                  child: Text('Tải về trong ứng dụng'),
+                ),
+                DropdownMenuItem(
+                  value: 'email',
+                  child: Text('Gửi qua email'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _deliveryMethod = value);
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _emailCtrl,
+              enabled: _deliveryMethod == 'email',
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Email nhận hóa đơn',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (_deliveryMethod != 'email') return null;
+                final trimmed = value?.trim() ?? '';
+                if (trimmed.isEmpty) {
+                  return 'Vui lòng nhập email nhận hóa đơn';
+                }
+                final regex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                if (!regex.hasMatch(trimmed)) {
+                  return 'Email không hợp lệ';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _submitting ? null : _submit,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.receipt_long_outlined),
+                label: Text(
+                  _submitting ? 'Đang gửi yêu cầu...' : 'Yêu cầu xuất hóa đơn',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF7A3D),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final result = await widget.presenter.requestInvoice(
+      bookingId: widget.booking.id,
+      customerName: _nameCtrl.text.trim(),
+      taxCode: _taxCtrl.text.trim(),
+      address: _addressCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      deliveryMethod: _deliveryMethod,
+    );
+    setState(() => _submitting = false);
+
+    if (result != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            _deliveryMethod == 'email'
+                ? 'Hóa đơn sẽ được gửi qua email sau khi xử lý.'
+                : 'Đã gửi yêu cầu xuất hóa đơn.',
+          ),
+        ),
+      );
+    } else if (widget.presenter.actionError.isNotEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(_localizedError(widget.presenter.actionError)),
+        ),
+      );
+    }
   }
 }
 
@@ -2670,6 +3046,7 @@ class _CoverImage extends StatelessWidget {
     );
   }
 }
+
 
 
 

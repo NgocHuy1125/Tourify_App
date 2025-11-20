@@ -1,0 +1,11 @@
+    final paymentUrl = intent.paymentUrl?.trim() ?? '';
+    final paymentQr = intent.paymentQrUrl?.trim() ?? '';
+    if (paymentUrl.isNotEmpty) {
+      final success = await launchUrlString(
+        paymentUrl,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!success) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Không thể mở liên kết thanh toán.')),
+        );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:tourify_app/features/home/model/home_models.dart';
+import 'package:tourify_app/features/home/view/all_tours_screen.dart';
 
 import 'section_header.dart';
 
@@ -22,33 +23,47 @@ class DestinationCarousel extends StatelessWidget {
       children: [
         SectionHeader(
           title: title,
-          onSeeMore: () => debugPrint('Xem thêm điểm đến'),
+          onSeeMore: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AllToursScreen()),
+            );
+          },
         ),
         const SizedBox(height: 12),
         SizedBox(
           height: 102,
-          child:
-              isLoading && destinations.isEmpty
-                  ? const _DestinationSkeleton()
-                  : ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (context, index) {
-                      if (destinations.isEmpty) {
-                        return const _DestinationPill(
-                          name: 'Đang cập nhật',
-                          imageUrl: '',
-                        );
-                      }
-                      final dest = destinations[index];
-                      return _DestinationPill(
-                        name: dest.name,
-                        imageUrl: dest.imageUrl,
+          child: isLoading && destinations.isEmpty
+              ? const _DestinationSkeleton()
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemBuilder: (context, index) {
+                    if (destinations.isEmpty) {
+                      return const _DestinationPill(
+                        name: 'Đang cập nhật',
+                        imageUrl: '',
                       );
-                    },
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemCount: destinations.isEmpty ? 6 : destinations.length,
-                  ),
+                    }
+                    final dest = destinations[index];
+                    return _DestinationPill(
+                      name: dest.name,
+                      imageUrl: dest.imageUrl,
+                      onTap: () {
+                        final destination = dest.name.trim();
+                        if (destination.isEmpty) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AllToursScreen(
+                              destination: destination,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemCount: destinations.isEmpty ? 6 : destinations.length,
+                ),
         ),
       ],
     );
@@ -56,15 +71,20 @@ class DestinationCarousel extends StatelessWidget {
 }
 
 class _DestinationPill extends StatelessWidget {
-  const _DestinationPill({required this.name, required this.imageUrl});
+  const _DestinationPill({
+    required this.name,
+    required this.imageUrl,
+    this.onTap,
+  });
 
   final String name;
   final String imageUrl;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => debugPrint('Chọn điểm đến: $name'),
+      onTap: onTap,
       child: Container(
         width: 150,
         decoration: BoxDecoration(
@@ -83,29 +103,27 @@ class _DestinationPill extends StatelessWidget {
         child: Row(
           children: [
             ClipOval(
-              child:
-                  imageUrl.isEmpty
-                      ? Container(
+              child: imageUrl.isEmpty
+                  ? Container(
+                      width: 56,
+                      height: 56,
+                      color: Colors.grey.shade200,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.image_outlined),
+                    )
+                  : Image.network(
+                      imageUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
                         width: 56,
                         height: 56,
                         color: Colors.grey.shade200,
                         alignment: Alignment.center,
-                        child: const Icon(Icons.image_outlined),
-                      )
-                      : Image.network(
-                        imageUrl,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        errorBuilder:
-                            (_, __, ___) => Container(
-                              width: 56,
-                              height: 56,
-                              color: Colors.grey.shade200,
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.image_not_supported),
-                            ),
+                        child: const Icon(Icons.image_not_supported),
                       ),
+                    ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -131,38 +149,37 @@ class _DestinationSkeleton extends StatelessWidget {
     return ListView.separated(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemBuilder:
-          (_, __) => Container(
-            width: 150,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.grey.shade200),
+      itemBuilder: (_, __) => Container(
+        width: 150,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                shape: BoxShape.circle,
+              ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    shape: BoxShape.circle,
-                  ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                height: 14,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
       separatorBuilder: (_, __) => const SizedBox(width: 12),
       itemCount: 6,
     );

@@ -315,6 +315,67 @@ class ChatbotSource {
   }
 }
 
+class RecommendationMeta {
+  const RecommendationMeta({
+    this.count = 0,
+    this.generatedAt,
+    this.hasPersonalizedSignals = false,
+    this.personalizedResults = false,
+  });
+
+  final int count;
+  final DateTime? generatedAt;
+  final bool hasPersonalizedSignals;
+  final bool personalizedResults;
+
+  factory RecommendationMeta.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      return DateTime.tryParse(value.toString());
+    }
+
+    bool parseBool(dynamic value) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final lower = value.toLowerCase();
+        return lower == 'true' || lower == '1' || lower == 'yes';
+      }
+      return false;
+    }
+
+    return RecommendationMeta(
+      count:
+          json['count'] is num
+              ? (json['count'] as num).toInt()
+              : int.tryParse(json['count']?.toString() ?? '') ?? 0,
+      generatedAt: parseDate(json['generated_at']),
+      hasPersonalizedSignals: parseBool(
+        json['has_personalized_signals'] ?? json['hasSignals'],
+      ),
+      personalizedResults: parseBool(
+        json['personalized_results'] ?? json['personalized'],
+      ),
+    );
+  }
+}
+
+class RecommendationPayload {
+  const RecommendationPayload({
+    required this.items,
+    required this.meta,
+  });
+
+  final List<RecommendationItem> items;
+  final RecommendationMeta meta;
+
+  factory RecommendationPayload.empty() => RecommendationPayload(
+        items: const [],
+        meta: const RecommendationMeta(),
+      );
+}
+
 class ChatbotReply {
   ChatbotReply({
     required this.reply,

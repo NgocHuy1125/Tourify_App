@@ -38,6 +38,9 @@ class AccountPresenter with ChangeNotifier {
   bool _notificationLoading = false;
   bool get notificationLoading => _notificationLoading;
 
+  bool _isUploadingAvatar = false;
+  bool get isUploadingAvatar => _isUploadingAvatar;
+
   Map<String, bool> _notificationPreferences = const {};
   Map<String, bool> get notificationPreferences => _notificationPreferences;
 
@@ -185,6 +188,8 @@ class AccountPresenter with ChangeNotifier {
     try {
       await _authRepository.signOut();
       _authNotifier.updateLoginState(false);
+      _profile = null;
+      _notificationPreferences = const {};
       _state = AccountState.signedOut;
       _errorMessage = '';
     } catch (_) {
@@ -193,6 +198,38 @@ class AccountPresenter with ChangeNotifier {
     } finally {
       notifyListeners();
     }
+  }
+
+  Future<bool> uploadAvatar(Uint8List data, {required String fileName}) async {
+    _isUploadingAvatar = true;
+    notifyListeners();
+    try {
+      final updated = await _accountRepository.uploadAvatar(
+        data,
+        fileName: fileName,
+      );
+      if (updated != null) {
+        _profile = updated;
+      } else {
+        await loadProfile();
+      }
+      _errorMessage = '';
+      return true;
+    } catch (e) {
+      _errorMessage = _formatError(e);
+      return false;
+    } finally {
+      _isUploadingAvatar = false;
+      notifyListeners();
+    }
+  }
+
+  void clearProfile() {
+    _profile = null;
+    _notificationPreferences = const {};
+    _errorMessage = '';
+    _state = AccountState.initial;
+    notifyListeners();
   }
 
   String _formatError(Object error) {

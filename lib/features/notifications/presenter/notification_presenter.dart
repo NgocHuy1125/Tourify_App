@@ -155,4 +155,14 @@ class NotificationPresenter with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  void reset() {
+    _notifications = const [];
+    _unreadCount = 0;
+    _errorMessage = '';
+    _currentPage = 1;
+    _hasMore = true;
+    _notificationsEnabled = null;
+    notifyListeners();
+  }
 }

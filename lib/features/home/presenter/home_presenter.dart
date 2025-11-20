@@ -56,6 +56,8 @@ class HomePresenter with ChangeNotifier {
 
   String _recommendationsMessage = '';
   String get recommendationsMessage => _recommendationsMessage;
+  RecommendationMeta _recommendationsMeta = const RecommendationMeta();
+  RecommendationMeta get recommendationsMeta => _recommendationsMeta;
 
   List<ChatMessage> _chatMessages = const [];
   List<ChatMessage> get chatMessages => List.unmodifiable(_chatMessages);
@@ -74,6 +76,7 @@ class HomePresenter with ChangeNotifier {
     _errorMessage = '';
     _recommendations = [];
     _recommendationsMessage = '';
+    _recommendationsMeta = const RecommendationMeta();
     _recommendationsLoading = true;
     _recentTours = [];
     _recentToursLoading = true;
@@ -128,17 +131,28 @@ class HomePresenter with ChangeNotifier {
 
   Future<void> _loadRecommendations() async {
     try {
-      final items = await _repository.fetchRecommendations(limit: 8);
-      _recommendations = items;
-      _recommendationsMessage =
-          items.isEmpty ? 'Hãy xem hoặc thêm vài tour vào yêu thích để Tourify hiểu bạn hơn.'
-              : '';
+      final result = await _repository.fetchRecommendations(limit: 8);
+      _recommendations = result.items;
+      _recommendationsMeta = result.meta;
+      _recommendationsMessage = _buildRecommendationMessage(result.meta);
     } catch (_) {
       _recommendations = [];
-      _recommendationsMessage = '';
+      _recommendationsMeta = const RecommendationMeta();
+      _recommendationsMessage = 'Không thể tải gợi ý. Vui lòng thử lại sau.';
     } finally {
       _recommendationsLoading = false;
     }
+  }
+
+  String _buildRecommendationMessage(RecommendationMeta meta) {
+    if (meta.count > 0 && _recommendations.isNotEmpty) return '';
+    if (!meta.hasPersonalizedSignals) {
+      return 'Tour sẽ được gợi ý sau vài thao tác (xem/lưu/đặt tour…).';
+    }
+    if (meta.hasPersonalizedSignals && meta.count == 0) {
+      return 'Chưa có gợi ý phù hợp. Hãy khám phá thêm để Tourify hiểu bạn hơn.';
+    }
+    return '';
   }
 
   Future<void> trackRecommendationClick(RecommendationItem item) async {

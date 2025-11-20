@@ -3,9 +3,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:go_router/go_router.dart'; // <-- BẮT BUỘC CÓ IMPORT NÀY
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
+import 'package:tourify_app/core/notifiers/auth_notifier.dart';
 import 'package:tourify_app/features/auth/presenter/auth_presenter.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -23,6 +23,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _didCompleteLogin = false;
 
   @override
   void dispose() {
@@ -37,6 +38,14 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     const brandColor = Color(0xFFFF5B00);
+    final isLoggedIn = context.watch<AuthNotifier>().isLoggedIn;
+    if (isLoggedIn && !_didCompleteLogin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _didCompleteLogin) return;
+        _didCompleteLogin = true;
+        Navigator.of(context).pop(true);
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -62,18 +71,9 @@ class _AuthScreenState extends State<AuthScreen> {
           },
         ),
         actions: [
-          // **ĐÃ SỬA LỖI Ở ĐÂY: Dùng GoRouter để đóng màn hình**
           IconButton(
             icon: const Icon(Icons.close, color: Colors.black54),
-            onPressed: () {
-              // Dùng context.pop() của GoRouter để quay lại màn hình trước đó một cách an toàn
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                // Nếu không có màn hình nào để quay lại (ví dụ: mở từ link), đi đến trang chủ
-                context.go('/');
-              }
-            },
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
         ],
       ),

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -192,6 +193,7 @@ class _HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatarUrl = profile?.avatarUrl;
     final theme = Theme.of(context);
+    final presenter = context.watch<AccountPresenter>();
 
     return Container(
       decoration: BoxDecoration(
@@ -203,7 +205,7 @@ class _HeaderCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -216,7 +218,7 @@ class _HeaderCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 46,
-              backgroundColor: Colors.white.withValues(alpha: 0.22),
+              backgroundColor: Colors.white.withOpacity(0.22),
               backgroundImage:
                   avatarUrl != null && avatarUrl.isNotEmpty
                       ? NetworkImage(avatarUrl)
@@ -245,7 +247,7 @@ class _HeaderCard extends StatelessWidget {
                   Text(
                     _primaryLoginDisplay(profile),
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: Colors.white.withOpacity(0.85),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -261,17 +263,21 @@ class _HeaderCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Tính năng cập nhật ảnh đại diện sẽ sớm ra mắt.',
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.image_outlined),
-                    label: const Text('Chỉnh ảnh đại diện'),
+                    onPressed: presenter.isUploadingAvatar
+                        ? null
+                        : () => _changeAvatar(context, presenter),
+                    icon: presenter.isUploadingAvatar
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.image_outlined),
+                    label: Text(
+                      presenter.isUploadingAvatar
+                          ? 'Đang tải...'
+                          : 'Chỉnh ảnh đại diện',
+                    ),
                   ),
                 ],
               ),
@@ -280,6 +286,45 @@ class _HeaderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _changeAvatar(
+    BuildContext context,
+    AccountPresenter presenter,
+  ) async {
+    final picker = ImagePicker();
+    try {
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!context.mounted) return;
+      final success = await presenter.uploadAvatar(
+        bytes,
+        fileName: file.name,
+      );
+      if (!context.mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      if (success) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Đã cập nhật ảnh đại diện.')),
+        );
+      } else {
+        final message =
+            presenter.errorMessage.isNotEmpty
+                ? presenter.errorMessage
+                : 'Không thể cập nhật ảnh đại diện.';
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể chọn ảnh: $error')),
+      );
+    }
   }
 }
 
@@ -311,7 +356,7 @@ class _InfoGroup extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -364,7 +409,7 @@ class _InfoTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: const Color(0xFF4E54C8).withValues(alpha: 0.12),
+        backgroundColor: const Color(0xFF4E54C8).withOpacity(0.12),
         child: Icon(icon, color: const Color(0xFF4E54C8)),
       ),
       title: Text(
@@ -694,7 +739,7 @@ Future<String?> _showTextFieldSheet(
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Huỷ'),
+                    child: const Text('Hủy'),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
@@ -722,6 +767,9 @@ Future<void> _submitUpdate(
   Map<String, dynamic> payload,
 ) async {
   final success = await presenter.updateProfile(payload);
+  if (success) {
+    await presenter.loadProfile();
+  }
   if (!context.mounted) return;
   final message =
       success

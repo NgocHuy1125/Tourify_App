@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:tourify_app/core/api/http_client.dart';
 import 'package:tourify_app/core/services/secure_storage_service.dart';
@@ -19,13 +21,20 @@ abstract class AccountRepository {
     Map<String, bool> prefs,
   );
   Future<void> submitFeedback(String message);
+  Future<UserProfile?> uploadAvatar(
+    Uint8List bytes, {
+    required String fileName,
+  });
 }
 
 class AccountRepositoryImpl implements AccountRepository {
   AccountRepositoryImpl()
-    : _http = HttpClient(http.Client(), SecureStorageService());
+    : _http = HttpClient(http.Client(), SecureStorageService()),
+      _supabase = Supabase.instance.client;
 
   final HttpClient _http;
+  final SupabaseClient _supabase;
+  static const _avatarBucket = 'Traveltour';
 
   @override
   Future<UserProfile?> getProfile() async {
@@ -147,5 +156,66 @@ class AccountRepositoryImpl implements AccountRepository {
       }
     });
     return prefs;
+  }
+
+  @override
+  Future<UserProfile?> uploadAvatar(
+    Uint8List bytes, {
+    required String fileName,
+  }) async {
+    final userId = _supabase.auth.currentUser?.id ??
+        DateTime.now().millisecondsSinceEpoch.toString();
+    final extension = _fileExtension(fileName);
+    final objectPath =
+        'avatars/$userId/${DateTime.now().millisecondsSinceEpoch}.$extension';
+
+    final contentType = _contentTypeFromExtension(extension);
+
+    try {
+      await _supabase.storage.from(_avatarBucket).uploadBinary(
+        objectPath,
+        bytes,
+        fileOptions: FileOptions(
+          upsert: true,
+          contentType: contentType,
+        ),
+      );
+    } on StorageException catch (error) {
+      throw Exception(error.message);
+    } catch (error) {
+      throw Exception('Không thể tải ảnh lên. Vui lòng thử lại.');
+    }
+
+    final publicUrl =
+        _supabase.storage.from(_avatarBucket).getPublicUrl(objectPath);
+    return updateProfile({'avatar_url': publicUrl});
+  }
+
+  String _fileExtension(String fileName) {
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex != -1 && dotIndex < fileName.length - 1) {
+      final ext = fileName.substring(dotIndex + 1).toLowerCase();
+      if (ext.isNotEmpty) return ext;
+    }
+    return 'jpg';
+  }
+
+  String _contentTypeFromExtension(String extension) {
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
+    }
   }
 }

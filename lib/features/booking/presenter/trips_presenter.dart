@@ -16,11 +16,12 @@ class TripsPresenter with ChangeNotifier {
   TripsPresenter(this._repository);
 
   static const List<TripsFilter> filters = [
-    TripsFilter(key: 'all', label: 'Táº¥t cáº£'),
-    TripsFilter(key: 'pending_payment', label: 'Chá» thanh toÃ¡n'),
-    TripsFilter(key: 'confirmed', label: 'ÄÃ£ xÃ¡c nháº­n'),
-    TripsFilter(key: 'completed', label: 'HoÃ n thÃ nh'),
-    TripsFilter(key: 'cancelled', label: 'ÄÃ£ há»§y'),
+    // Đã sửa lỗi Tiếng Việt
+    TripsFilter(key: 'all', label: 'Tất cả'),
+    TripsFilter(key: 'pending_payment', label: 'Chờ thanh toán'),
+    TripsFilter(key: 'confirmed', label: 'Xác nhận'),
+    TripsFilter(key: 'completed', label: 'Hoàn thành'),
+    TripsFilter(key: 'cancelled', label: 'Đã hủy'),
   ];
 
   final BookingRepository _repository;
@@ -93,20 +94,21 @@ class TripsPresenter with ChangeNotifier {
 
   String statusLabel(String status) {
     final normalized = status.toLowerCase();
+    // Đã sửa lỗi Tiếng Việt
     if (normalized.contains('pending') || normalized.contains('await')) {
-      return 'Chá» thanh toÃ¡n';
+      return 'Chờ thanh toán';
     }
     if (normalized.contains('confirm')) {
-      return 'ÄÃ£ xÃ¡c nháº­n';
+      return 'Xác nhận';
     }
     if (normalized.contains('complete') || normalized.contains('finish')) {
-      return 'HoÃ n thÃ nh';
+      return 'Hoàn thành';
     }
     if (normalized.contains('cancel')) {
-      return 'ÄÃ£ há»§y';
+      return 'Đã hủy';
     }
     if (normalized.contains('processing') || normalized.contains('review')) {
-      return 'Äang xá»­ lÃ½';
+      return 'Đang xử lý';
     }
     return status;
   }
@@ -153,9 +155,9 @@ class TripsPresenter with ChangeNotifier {
         final all = _cache['all'];
         if (all != null && all.isNotEmpty) {
           effective =
-            all
-                .where((booking) => _matchesFilter(booking, filterKey))
-                .toList();
+              all
+                  .where((booking) => _matchesFilter(booking, filterKey))
+                  .toList();
         }
       }
 
@@ -272,23 +274,57 @@ class TripsPresenter with ChangeNotifier {
   }
 
   bool _matchesFilter(BookingSummary booking, String filter) {
-    final status = booking.status.toLowerCase();
-    final paymentStatus = (booking.paymentStatus ?? '').toLowerCase();
+    final stage = _stageKeyFor(booking);
     switch (filter) {
       case 'pending_payment':
-        return status.contains('pending') ||
-            status.contains('await') ||
-            paymentStatus.contains('pending') ||
-            paymentStatus.contains('await');
+        return stage == 'awaiting_payment';
       case 'confirmed':
-        return status.contains('confirm');
+        return stage == 'awaiting_confirmation';
       case 'completed':
-        return status.contains('complete') || status.contains('finish');
+        return stage == 'completed';
       case 'cancelled':
-        return status.contains('cancel');
+        return stage == 'cancelled';
       default:
         return true;
     }
+  }
+
+  String _stageKeyFor(BookingSummary booking) {
+    final status = booking.status.toLowerCase();
+    final payment = booking.paymentStatus?.toLowerCase() ?? '';
+    final hasPaid =
+        (booking.amountPaid ?? 0) > 0 ||
+        payment.contains('paid') ||
+        payment.contains('success') ||
+        payment.contains('refunded');
+
+    if (status.contains('cancel')) return 'cancelled';
+    if (status.contains('complete') || status.contains('finish')) {
+      return 'completed';
+    }
+
+    if (status.contains('pending') || status.contains('await')) {
+      return hasPaid ? 'awaiting_confirmation' : 'awaiting_payment';
+    }
+
+    if (status.contains('confirm') || status.contains('process')) {
+      return hasPaid ? 'awaiting_confirmation' : 'awaiting_payment';
+    }
+
+    if (status.contains('cancell') && payment.contains('pending')) {
+      return 'awaiting_payment';
+    }
+
+    if (!hasPaid &&
+        (payment.contains('pending') ||
+            payment.contains('await') ||
+            payment.contains('unpaid') ||
+            payment.isEmpty)) {
+      return 'awaiting_payment';
+    }
+
+    if (hasPaid) return 'awaiting_confirmation';
+    return 'processing';
   }
 
   Future<RefundRequest?> submitRefundRequest({
@@ -388,5 +424,13 @@ class TripsPresenter with ChangeNotifier {
       return null;
     }
   }
-}
 
+  void resetForGuest() {
+    _state = TripsState.initial;
+    _errorMessage = '';
+    _actionError = '';
+    _cache.clear();
+    _selectedFilter = filters.first.key;
+    notifyListeners();
+  }
+}

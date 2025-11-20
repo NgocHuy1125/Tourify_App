@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:tourify_app/core/utils/auth_guard.dart';
 import 'package:tourify_app/features/home/model/home_models.dart';
 import 'package:tourify_app/features/home/model/recent_tour_storage.dart';
 import 'package:tourify_app/features/cart/presenter/cart_presenter.dart';
@@ -316,7 +317,12 @@ class _TourDetailViewState extends State<_TourDetailView> {
           builder: (_, cart, __) {
             return _CartActionIcon(
               count: cart.totalItems,
-              onPressed: () {
+              onPressed: () async {
+                final allowed = await ensureLoggedIn(
+                  context,
+                  message: 'Vui lòng đăng nhập để xem giỏ hàng.',
+                );
+                if (!allowed) return;
                 if (cart.state == CartState.initial ||
                     cart.state == CartState.error) {
                   cart.loadCart();
@@ -339,6 +345,11 @@ class _TourDetailViewState extends State<_TourDetailView> {
     WishlistPresenter wishlist,
   ) async {
     if (_wishlistBusy) return;
+    final allowed = await ensureLoggedIn(
+      context,
+      message: 'Vui lòng đăng nhập để quản lý tour yêu thích.',
+    );
+    if (!allowed) return;
     setState(() => _wishlistBusy = true);
     try {
       await wishlist.toggleFavouriteByTour(_summaryFromDetail(detail));
@@ -404,7 +415,12 @@ class BottomCTA extends StatelessWidget {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final allowed = await ensureLoggedIn(
+                context,
+                message: 'Vui lòng đăng nhập để đặt tour.',
+              );
+              if (!allowed) return;
               final packages =
                   detail.packages.where((pkg) => pkg.isActive).toList();
               if (packages.isEmpty) {

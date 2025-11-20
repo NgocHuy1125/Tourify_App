@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:tourify_app/core/utils/auth_guard.dart';
 import 'package:tourify_app/features/tour/model/tour_model.dart';
 
 import 'tour_booking_sheet.dart';
@@ -246,7 +247,12 @@ class _PackageCard extends StatelessWidget {
           Row(
             children: [
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  final allowed = await ensureLoggedIn(
+                    context,
+                    message: 'Vui lòng đăng nhập để đặt tour.',
+                  );
+                  if (!allowed) return;
                   BookingSheet.show(
                     context,
                     detail: detail,

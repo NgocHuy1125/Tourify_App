@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'package:tourify_app/features/home/model/home_models.dart';
@@ -17,17 +17,58 @@ class PersonalizedRecommendationSection extends StatelessWidget {
         presenter.recommendationsLoading &&
         presenter.state == HomeState.loading;
     final message = presenter.recommendationsMessage;
+    final meta = presenter.recommendationsMeta;
+    final showPersonalized =
+        meta.personalizedResults && recommendations.isNotEmpty;
+    final generatedAt = meta.generatedAt;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Tour dành cho bạn',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tour dành cho bạn', // Đã sửa: 'Tour dành cho bạn'
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (showPersonalized)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Đã cá nhân hóa', // Đã sửa: 'Đã cá nhân hóa'
+                        style: TextStyle(
+                          color: Color(0xFFFF5B00),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  if (showPersonalized) const SizedBox(width: 8),
+                  if (generatedAt != null)
+                    Text(
+                      'Cập nhật ', // Đã sửa: 'Cập nhật '
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -83,7 +124,7 @@ class _RecommendationCard extends StatelessWidget {
     final tour = item.tour;
     final formatter = NumberFormat.currency(
       locale: 'vi_VN',
-      symbol: '₫',
+      symbol: 'đ',
       decimalDigits: 0,
     );
     final reasons = item.reasonBadges(limit: 2);
@@ -101,7 +142,7 @@ class _RecommendationCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05), // Sử dụng withOpacity
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -134,8 +175,8 @@ class _RecommendationCard extends StatelessWidget {
                                         vertical: 6,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.9,
+                                        color: Colors.white.withOpacity(
+                                          0.9, // Sử dụng withOpacity
                                         ),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
@@ -172,7 +213,7 @@ class _RecommendationCard extends StatelessWidget {
                               child: Text(
                                 tour.destination.isNotEmpty
                                     ? tour.destination
-                                    : 'Địa điểm đang cập nhật',
+                                    : 'Địa điểm đang cập nhật', // Đã sửa
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall
@@ -200,8 +241,8 @@ class _RecommendationCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               tour.duration > 0
-                                  ? '${tour.duration} ngày'
-                                  : 'Lịch trình linh hoạt',
+                                  ? '${tour.duration} ngày' // Đã sửa
+                                  : 'Lịch trình linh hoạt', // Đã sửa
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: Colors.grey[600]),
                             ),
@@ -214,7 +255,7 @@ class _RecommendationCard extends StatelessWidget {
                             Text(
                               tour.displayPrice > 0
                                   ? formatter.format(tour.displayPrice)
-                                  : 'Liên hệ để nhận giá',
+                                  : 'Liên hệ để nhận giá', // Đã sửa
                               style: Theme.of(
                                 context,
                               ).textTheme.titleMedium?.copyWith(
@@ -225,23 +266,25 @@ class _RecommendationCard extends StatelessWidget {
                             if (tour.displayPrice < tour.priceFrom)
                               Text(
                                 formatter.format(tour.priceFrom),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Colors.grey,
-                                      decoration: TextDecoration.lineThrough,
-                                    ),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
                               ),
                             if (tour.hasAutoPromotion)
                               Text(
                                 tour.autoPromotion?.description ??
-                                    'Giảm ${formatter.format(tour.autoPromotion!.discountAmount)}',
+                                    'Giảm ${formatter.format(tour.autoPromotion!.discountAmount)}', // Đã sửa
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: const Color(0xFFFF5B00),
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(
+                                  color: const Color(0xFFFF5B00),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                           ],
                         ),
@@ -305,7 +348,7 @@ class _EmptyRecommendation extends StatelessWidget {
     final displayMessage =
         message.isNotEmpty
             ? message
-            : 'Hãy xem và thêm một vài tour vào yêu thích để gợi ý chính xác hơn.';
+            : 'Hãy xem và thêm một vài tour vào yêu thích để gợi ý chính xác hơn.'; // Đã sửa
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(

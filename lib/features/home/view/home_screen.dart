@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:tourify_app/core/notifiers/auth_notifier.dart';
 import 'package:tourify_app/features/home/presenter/home_presenter.dart';
 import 'package:tourify_app/features/notifications/presenter/notification_presenter.dart';
 
@@ -28,7 +29,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (presenter.tours.isEmpty) {
         presenter.fetchHome();
       }
-      context.read<NotificationPresenter>().refreshUnreadCount();
+      final auth = context.read<AuthNotifier>();
+      if (auth.isLoggedIn) {
+        context.read<NotificationPresenter>().refreshUnreadCount();
+      }
     });
   }
 

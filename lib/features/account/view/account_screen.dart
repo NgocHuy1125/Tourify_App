@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:tourify_app/core/notifiers/auth_notifier.dart';
+import 'package:tourify_app/core/utils/auth_guard.dart';
 import 'package:tourify_app/features/account/presenter/account_presenter.dart';
 import 'package:tourify_app/features/account/view/account_settings_screen.dart';
 import 'package:tourify_app/features/account/view/feedback_screen.dart';
@@ -18,25 +20,45 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  // Sample data - replace with real user data when API is integrated
-  String _userName = 'Ng\u01b0\u1eddi d\u00f9ng Tourify';
+  String _userName = 'Người dùng Tourify';
   final String _avatarUrl = '';
-  final String _level = 'B\u1ea1c';
+  final String _level = 'Bạc';
   final int _levelNumber = 1;
-  final String _rewardsInfo = '4 Quy\u1ec1n l\u1ee3i | X1 Tourify Xu';
+  final String _rewardsInfo = '4 Quyền lợi | X1 Tourify Xu';
+  late final AuthNotifier _authNotifier;
+  late final VoidCallback _authListener;
 
   @override
   void initState() {
     super.initState();
+    _authNotifier = context.read<AuthNotifier>();
+    _authListener = _handleAuthChanged;
+    _authNotifier.addListener(_authListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AccountPresenter>().loadProfile();
+      _handleAuthChanged();
     });
+  }
+
+  @override
+  void dispose() {
+    _authNotifier.removeListener(_authListener);
+    super.dispose();
+  }
+
+  void _handleAuthChanged() {
+    final presenter = context.read<AccountPresenter>();
+    if (_authNotifier.isLoggedIn) {
+      presenter.loadProfile();
+    } else {
+      presenter.clearProfile();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final presenter = context.watch<AccountPresenter>();
     final state = presenter.state;
+    final isLoggedIn = context.watch<AuthNotifier>().isLoggedIn;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -60,13 +82,13 @@ class _AccountScreenState extends State<AccountScreen> {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                _buildHeader(),
+                _buildHeader(isLoggedIn),
                 const SizedBox(height: 110),
                 _buildMainActionGroup(),
                 const SizedBox(height: 16),
                 _buildSecondaryActionGroup(),
                 const SizedBox(height: 24),
-                _buildLogoutButton(),
+                if (isLoggedIn) _buildLogoutButton() else _buildLoginButton(),
                 const SizedBox(height: 24),
               ],
             ),
@@ -74,7 +96,7 @@ class _AccountScreenState extends State<AccountScreen> {
         ),
         if (isLoading)
           Container(
-            color: Colors.black.withValues(alpha: 0.5),
+            color: Colors.black.withOpacity(0.5),
             child: const Center(
               child: CircularProgressIndicator(color: Colors.white),
             ),
@@ -83,7 +105,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isLoggedIn) {
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
@@ -95,9 +117,9 @@ class _AccountScreenState extends State<AccountScreen> {
           right: 16,
           child: Column(
             children: [
-              _buildUserProfileHeader(),
+              _buildUserProfileHeader(isLoggedIn),
               const SizedBox(height: 16),
-              _buildUserRewardsCard(),
+              if (isLoggedIn) _buildUserRewardsCard(),
             ],
           ),
         ),
@@ -112,23 +134,24 @@ class _AccountScreenState extends State<AccountScreen> {
         onPressed: () async {
           final bool? didConfirm = await showDialog<bool>(
             context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('X\u00e1c nh\u1eadn \u0111\u0103ng xu\u1ea5t'),
-              content: const Text('B\u1ea1n c\u00f3 ch\u1eafc ch\u1eafn mu\u1ed1n \u0111\u0103ng xu\u1ea5t?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('H\u1ee7y'),
+            builder:
+                (dialogContext) => AlertDialog(
+                  title: const Text('Xác nhận đăng xuất'),
+                  content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('Hủy'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text(
+                        'Đăng xuất',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text(
-                    '\u0110\u0103ng xu\u1ea5t',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
-              ],
-            ),
           );
 
           if (didConfirm == true && mounted) {
@@ -139,13 +162,28 @@ class _AccountScreenState extends State<AccountScreen> {
           backgroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 50),
           side: BorderSide(color: Colors.grey.shade300),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: const Text(
-          '\u0110\u0103ng xu\u1ea5t',
+          'Đăng xuất',
           style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: ElevatedButton(
+        onPressed: () => openAuthScreen(context),
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: const Text(
+          'Đăng nhập hoặc Đăng ký',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -168,7 +206,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Widget _buildUserProfileHeader() {
+  Widget _buildUserProfileHeader(bool isLoggedIn) {
     final presenter = context.watch<AccountPresenter>();
     final profile = presenter.profile;
     final name =
@@ -178,8 +216,56 @@ class _AccountScreenState extends State<AccountScreen> {
     final avatarUrl = profile?.avatarUrl ?? _avatarUrl;
 
     void openPersonalInfo() {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const PersonalInfoScreen()),
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const PersonalInfoScreen()));
+    }
+
+    if (!isLoggedIn) {
+      return GestureDetector(
+        onTap: () => openAuthScreen(context),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.white.withOpacity(0.3),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Đăng nhập hoặc Đăng ký',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Chạm để đăng nhập và đồng bộ thông tin tài khoản.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white70),
+            ],
+          ),
+        ),
       );
     }
 
@@ -192,9 +278,10 @@ class _AccountScreenState extends State<AccountScreen> {
             backgroundColor: Colors.grey.shade300,
             backgroundImage:
                 avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-            child: avatarUrl.isEmpty
-                ? const Icon(Icons.person, size: 30, color: Colors.white)
-                : null,
+            child:
+                avatarUrl.isEmpty
+                    ? const Icon(Icons.person, size: 30, color: Colors.white)
+                    : null,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -214,15 +301,15 @@ class _AccountScreenState extends State<AccountScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'C\u1eadp nh\u1eadt th\u00f4ng tin c\u00e1 nh\u00e2n',
+                      'Cập nhật thông tin cá nhân',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: Colors.white.withOpacity(0.8),
                         fontSize: 13,
                       ),
                     ),
                     Icon(
                       Icons.chevron_right,
-                      color: Colors.white.withValues(alpha: 0.8),
+                      color: Colors.white.withOpacity(0.8),
                       size: 16,
                     ),
                   ],
@@ -243,7 +330,7 @@ class _AccountScreenState extends State<AccountScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -293,7 +380,7 @@ class _AccountScreenState extends State<AccountScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Nh\u1eadn ph\u1ea7n th\u01b0\u1edfng',
+                  'Nhận phần thưởng',
                   style: TextStyle(
                     color: Color(0xFFFF5B00),
                     fontSize: 13,
@@ -310,29 +397,39 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _openTrips({required bool completedOnly}) async {
+    if (!await _ensureLoggedIn()) return;
     final tripsPresenter = context.read<TripsPresenter>();
     await tripsPresenter.selectFilter(completedOnly ? 'completed' : 'all');
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChangeNotifierProvider<TripsPresenter>.value(
-          value: tripsPresenter,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(
-                completedOnly ? '\u0110\u00e1nh gi\u00e1' : '\u0110\u01a1n h\u00e0ng',
+        builder:
+            (_) => ChangeNotifierProvider<TripsPresenter>.value(
+              value: tripsPresenter,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Text(completedOnly ? 'Đánh giá' : 'Đơn hàng'),
+                ),
+                body: const TripsScreen(),
               ),
             ),
-            body: const TripsScreen(),
-          ),
-        ),
       ),
     );
   }
 
   void _openFeedback() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+    _ensureLoggedIn().then((allowed) {
+      if (!allowed || !mounted) return;
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const FeedbackScreen()));
+    });
+  }
+
+  Future<bool> _ensureLoggedIn() {
+    return ensureLoggedIn(
+      context,
+      message: 'Vui lòng đăng nhập để sử dụng tính năng này.',
     );
   }
 
@@ -347,14 +444,17 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _ActionListTile(
             icon: Icons.receipt_long_outlined,
-            title: '\u0110\u01a1n h\u00e0ng',
+
+            title: 'Đơn hàng',
             onTap: () => _openTrips(completedOnly: false),
           ),
           const Divider(height: 1, indent: 56),
           _ActionListTile(
             icon: Icons.rate_review_outlined,
-            title: '\u0110\u00e1nh gi\u00e1',
-            subtitle: 'Xem v\u00e0 c\u1eadp nh\u1eadt tour \u0111\u00e3 ho\u00e0n th\u00e0nh',
+
+            title: 'Đánh giá',
+
+            subtitle: 'Xem và cập nhật tour đã hoàn thành',
             onTap: () => _openTrips(completedOnly: true),
           ),
         ],
@@ -373,19 +473,24 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _ActionListTile(
             icon: Icons.help_outline,
-            title: 'Tr\u1ee3 gi\u00fap',
+
+            title: 'Trợ giúp',
             onTap: _openFeedback,
           ),
           const Divider(height: 1, indent: 56),
           _ActionListTile(
             icon: Icons.settings_outlined,
-            title: 'C\u00e0i \u0111\u1eb7t',
+
+            title: 'Cài đặt',
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AccountSettingsScreen(),
-                ),
-              );
+              _ensureLoggedIn().then((allowed) {
+                if (!allowed || !mounted) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AccountSettingsScreen(),
+                  ),
+                );
+              });
             },
           ),
         ],
@@ -416,9 +521,9 @@ class _ActionListTile extends StatelessWidget {
       subtitle:
           subtitle != null
               ? Text(
-                  subtitle!,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                )
+                subtitle!,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              )
               : null,
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
     );
