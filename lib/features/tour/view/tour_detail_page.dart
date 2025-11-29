@@ -38,21 +38,20 @@ class _TourDetailPageState extends State<TourDetailPage> {
     final repo = context.read<TourRepository>();
     final detail = await repo.getTourDetails(widget.id);
 
-    unawaited(Future(() async {
-      try {
-        await repo.trackTourView(widget.id);
-      } catch (_) {
-        // ignore tracking error
-      }
-    }));
+    unawaited(
+      Future(() async {
+        try {
+          await repo.trackTourView(widget.id);
+        } catch (_) {
+          // ignore tracking error
+        }
+      }),
+    );
 
     final storage = context.read<RecentTourStorage>();
     final summary = detail.toSummary();
     await storage.upsert(
-      RecentTourItem.fromSummary(
-        summary,
-        viewedAt: DateTime.now(),
-      ),
+      RecentTourItem.fromSummary(summary, viewedAt: DateTime.now()),
     );
 
     TourReviewsResponse reviews;
@@ -391,7 +390,7 @@ class BottomCTA extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, -4),
           ),

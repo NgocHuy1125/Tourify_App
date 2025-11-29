@@ -8,14 +8,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData.light();
+    final base = ThemeData.light(useMaterial3: true);
     final scheme = ColorScheme.fromSeed(seedColor: _brand);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Tourify App',
+      title: 'VietTravel App',
       theme: base.copyWith(
-        useMaterial3: true,
         colorScheme: scheme,
         primaryColor: _brand,
         scaffoldBackgroundColor: Colors.white,
@@ -74,7 +73,7 @@ class MyApp extends StatelessWidget {
         ),
         chipTheme: base.chipTheme.copyWith(
           backgroundColor: Colors.white,
-          selectedColor: _brand.withOpacity(0.12),
+          selectedColor: _brand.withValues(alpha: 0.1),
           labelStyle: const TextStyle(color: Colors.black87),
         ),
         textTheme: base.textTheme.apply(

@@ -133,7 +133,7 @@ class _PromotionCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Săn deal ngay',
+                    'Khám phá ngay',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   SizedBox(width: 6),

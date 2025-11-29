@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:tourify_app/core/analytics/analytics_repository.dart';
 import '/features/tour/model/tour_model.dart';
 import '/features/home/model/home_models.dart';
@@ -199,7 +199,8 @@ class HomePresenter with ChangeNotifier {
         _recentToursMessage = '';
       } else {
         _recentTours = [];
-        _recentToursMessage = e.message ??
+        _recentToursMessage =
+            e.message ??
             'Bạn cần đăng nhập để xem lịch sử tour đã xem gần đây.';
       }
     } catch (error) {
@@ -242,13 +243,11 @@ class HomePresenter with ChangeNotifier {
       addItem(item);
     }
 
-    result.sort(
-      (a, b) {
-        final aDate = a.viewedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b.viewedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bDate.compareTo(aDate);
-      },
-    );
+    result.sort((a, b) {
+      final aDate = a.viewedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.viewedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
 
     return result.take(limit).toList();
   }
@@ -271,9 +270,10 @@ class HomePresenter with ChangeNotifier {
     final trimmed = message.trim();
     if (trimmed.isEmpty || _isSendingChat) return;
 
-    final lang = (language ?? _chatLanguage).trim().isEmpty
-        ? 'vi'
-        : (language ?? _chatLanguage).trim();
+    final lang =
+        (language ?? _chatLanguage).trim().isEmpty
+            ? 'vi'
+            : (language ?? _chatLanguage).trim();
 
     final userMessage = ChatMessage.user(trimmed);
     _chatMessages = [..._chatMessages, userMessage];
@@ -282,14 +282,15 @@ class HomePresenter with ChangeNotifier {
     notifyListeners();
 
     try {
-      final reply = await _repository.sendChatbotMessage(trimmed, language: lang);
-      final responseText = reply.reply.isNotEmpty
-          ? reply.reply
-          : 'Mình tạm thời chưa có câu trả lời. Bạn thử diễn đạt khác nhé!';
-      final botMessage = ChatMessage.bot(
-        responseText,
-        sources: reply.sources,
+      final reply = await _repository.sendChatbotMessage(
+        trimmed,
+        language: lang,
       );
+      final responseText =
+          reply.reply.isNotEmpty
+              ? reply.reply
+              : 'Mình tạm thời chưa có câu trả lời. Bạn thử diễn đạt khác nhé!';
+      final botMessage = ChatMessage.bot(responseText, sources: reply.sources);
       _chatMessages = [..._chatMessages, botMessage];
     } on ChatbotRateLimitException catch (error) {
       _chatError =
@@ -307,5 +308,3 @@ class HomePresenter with ChangeNotifier {
     }
   }
 }
-
-

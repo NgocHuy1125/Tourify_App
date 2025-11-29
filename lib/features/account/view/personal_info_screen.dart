@@ -72,81 +72,87 @@ class PersonalInfoScreen extends StatelessWidget {
                           label: 'Địa chỉ dòng 1',
                           value: _valueOrPlaceholder(profile?.addressLine1),
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editProfileField(
-                            context,
-                            presenter,
-                            title: 'Địa chỉ dòng 1',
-                            key: 'address_line1',
-                            initialValue: profile?.addressLine1 ?? '',
-                            hintText: 'Số nhà, tên đường...',
-                          ),
+                          onTap:
+                              () => _editProfileField(
+                                context,
+                                presenter,
+                                title: 'Địa chỉ dòng 1',
+                                key: 'address_line1',
+                                initialValue: profile?.addressLine1 ?? '',
+                                hintText: 'Số nhà, tên đường...',
+                              ),
                         ),
                         _InfoTile(
                           icon: Icons.maps_home_work_outlined,
                           label: 'Địa chỉ dòng 2',
                           value: _valueOrPlaceholder(profile?.addressLine2),
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editProfileField(
-                            context,
-                            presenter,
-                            title: 'Địa chỉ dòng 2',
-                            key: 'address_line2',
-                            initialValue: profile?.addressLine2 ?? '',
-                            hintText: 'Tòa nhà, khu phố (nếu có)',
-                          ),
+                          onTap:
+                              () => _editProfileField(
+                                context,
+                                presenter,
+                                title: 'Địa chỉ dòng 2',
+                                key: 'address_line2',
+                                initialValue: profile?.addressLine2 ?? '',
+                                hintText: 'Tòa nhà, khu phố (nếu có)',
+                              ),
                         ),
                         _InfoTile(
                           icon: Icons.location_city_outlined,
                           label: 'Thành phố',
                           value: _valueOrPlaceholder(profile?.city),
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editProfileField(
-                            context,
-                            presenter,
-                            title: 'Thành phố',
-                            key: 'city',
-                            initialValue: profile?.city ?? '',
-                          ),
+                          onTap:
+                              () => _editProfileField(
+                                context,
+                                presenter,
+                                title: 'Thành phố',
+                                key: 'city',
+                                initialValue: profile?.city ?? '',
+                              ),
                         ),
                         _InfoTile(
                           icon: Icons.map_outlined,
                           label: 'Tỉnh / Bang',
                           value: _valueOrPlaceholder(profile?.state),
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editProfileField(
-                            context,
-                            presenter,
-                            title: 'Tỉnh / Bang',
-                            key: 'state',
-                            initialValue: profile?.state ?? '',
-                          ),
+                          onTap:
+                              () => _editProfileField(
+                                context,
+                                presenter,
+                                title: 'Tỉnh / Bang',
+                                key: 'state',
+                                initialValue: profile?.state ?? '',
+                              ),
                         ),
                         _InfoTile(
                           icon: Icons.markunread_mailbox_outlined,
                           label: 'Mã bưu chính',
                           value: _valueOrPlaceholder(profile?.postalCode),
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editProfileField(
-                            context,
-                            presenter,
-                            title: 'Mã bưu chính',
-                            key: 'postal_code',
-                            keyboardType: TextInputType.number,
-                            initialValue: profile?.postalCode ?? '',
-                          ),
+                          onTap:
+                              () => _editProfileField(
+                                context,
+                                presenter,
+                                title: 'Mã bưu chính',
+                                key: 'postal_code',
+                                keyboardType: TextInputType.number,
+                                initialValue: profile?.postalCode ?? '',
+                              ),
                         ),
                         _InfoTile(
                           icon: Icons.public_outlined,
                           label: 'Quốc gia',
                           value: _valueOrPlaceholder(profile?.country),
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editProfileField(
-                            context,
-                            presenter,
-                            title: 'Quốc gia',
-                            key: 'country',
-                            initialValue: profile?.country ?? '',
-                          ),
+                          onTap:
+                              () => _editProfileField(
+                                context,
+                                presenter,
+                                title: 'Quốc gia',
+                                key: 'country',
+                                initialValue: profile?.country ?? '',
+                              ),
                         ),
                         _InfoTile(
                           icon: Icons.home_work_outlined,
@@ -154,13 +160,15 @@ class PersonalInfoScreen extends StatelessWidget {
                           value: _valueOrPlaceholder(profile?.address),
                           helper: 'Tổng hợp từ các trường địa chỉ phía trên.',
                           actionLabel: 'Chỉnh sửa',
-                          onTap: () => _editAddress(context, presenter, profile),
+                          onTap:
+                              () => _editAddress(context, presenter, profile),
                         ),
                         _InfoTile(
                           icon: Icons.phone_android_outlined,
                           label: 'Số điện thoại',
                           value: _valueOrPlaceholder(profile?.phone),
-                          helper: 'Bạn có thể đăng nhập bằng số điện thoại hoặc email.',
+                          helper:
+                              'Bạn có thể đăng nhập bằng số điện thoại hoặc email.',
                           actionLabel: 'Chỉnh sửa',
                           onTap: () => _editPhone(context, presenter, profile),
                         ),
@@ -205,7 +213,7 @@ class _HeaderCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -218,7 +226,7 @@ class _HeaderCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 46,
-              backgroundColor: Colors.white.withOpacity(0.22),
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
               backgroundImage:
                   avatarUrl != null && avatarUrl.isNotEmpty
                       ? NetworkImage(avatarUrl)
@@ -247,7 +255,7 @@ class _HeaderCard extends StatelessWidget {
                   Text(
                     _primaryLoginDisplay(profile),
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.8),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -263,16 +271,18 @@ class _HeaderCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                    onPressed: presenter.isUploadingAvatar
-                        ? null
-                        : () => _changeAvatar(context, presenter),
-                    icon: presenter.isUploadingAvatar
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.image_outlined),
+                    onPressed:
+                        presenter.isUploadingAvatar
+                            ? null
+                            : () => _changeAvatar(context, presenter),
+                    icon:
+                        presenter.isUploadingAvatar
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.image_outlined),
                     label: Text(
                       presenter.isUploadingAvatar
                           ? 'Đang tải...'
@@ -302,10 +312,7 @@ class _HeaderCard extends StatelessWidget {
       if (file == null) return;
       final bytes = await file.readAsBytes();
       if (!context.mounted) return;
-      final success = await presenter.uploadAvatar(
-        bytes,
-        fileName: file.name,
-      );
+      final success = await presenter.uploadAvatar(bytes, fileName: file.name);
       if (!context.mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       if (success) {
@@ -321,9 +328,9 @@ class _HeaderCard extends StatelessWidget {
       }
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể chọn ảnh: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể chọn ảnh: $error')));
     }
   }
 }
@@ -356,7 +363,7 @@ class _InfoGroup extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -409,7 +416,7 @@ class _InfoTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: const Color(0xFF4E54C8).withOpacity(0.12),
+        backgroundColor: const Color(0xFF4E54C8).withValues(alpha: 0.1),
         child: Icon(icon, color: const Color(0xFF4E54C8)),
       ),
       title: Text(

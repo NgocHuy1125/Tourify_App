@@ -24,7 +24,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   Widget build(BuildContext context) {
     final presenter = context.watch<AccountPresenter>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Phản hồi Tourify')),
+      appBar: AppBar(title: const Text('Phản hồi VietTravel')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -47,7 +47,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Hãy chia sẻ trải nghiệm, đề xuất hoặc vấn đề bạn gặp phải để Tourify ngày càng hoàn thiện hơn.',
+                        'Hãy chia sẻ trải nghiệm, đề xuất hoặc vấn đề bạn gặp phải để VietTravel ngày càng hoàn thiện hơn.',
                         style: TextStyle(color: Colors.grey.shade600),
                       ),
                       const SizedBox(height: 24),

@@ -38,12 +38,12 @@ class AccountSettingsScreen extends StatelessWidget {
         title: 'Hỗ trợ',
         items: [
           SettingItem(
-            title: 'Để lại phản hồi về Tourify',
+            title: 'Để lại phản hồi về VietTravel',
             subtitle: 'Chia sẻ góp ý để chúng tôi cải thiện trải nghiệm',
             onTap: () => _push(context, const FeedbackScreen()),
           ),
           SettingItem(
-            title: 'Về Tourify',
+            title: 'Về VietTravel',
             subtitle: 'Giới thiệu và liên kết trang web',
             onTap: () => _push(context, const AboutTourifyScreen()),
           ),

@@ -20,11 +20,11 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  String _userName = 'Người dùng Tourify';
+  String _userName = 'Người dùng VietTravel';
   final String _avatarUrl = '';
-  final String _level = 'Bạc';
+  final String _level = 'KH';
   final int _levelNumber = 1;
-  final String _rewardsInfo = '4 Quyền lợi | X1 Tourify Xu';
+  final String _rewardsInfo = '4 Quyền lợi | Nhiều ưu đãi';
   late final AuthNotifier _authNotifier;
   late final VoidCallback _authListener;
 
@@ -96,7 +96,7 @@ class _AccountScreenState extends State<AccountScreen> {
         ),
         if (isLoading)
           Container(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(alpha: 0.1),
             child: const Center(
               child: CircularProgressIndicator(color: Colors.white),
             ),
@@ -227,14 +227,14 @@ class _AccountScreenState extends State<AccountScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 30,
-                backgroundColor: Colors.white.withOpacity(0.3),
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
                 child: const Icon(
                   Icons.person_outline,
                   color: Colors.white,
@@ -303,13 +303,13 @@ class _AccountScreenState extends State<AccountScreen> {
                     Text(
                       'Cập nhật thông tin cá nhân',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 13,
                       ),
                     ),
                     Icon(
                       Icons.chevron_right,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       size: 16,
                     ),
                   ],
@@ -330,7 +330,7 @@ class _AccountScreenState extends State<AccountScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

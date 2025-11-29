@@ -12,8 +12,16 @@ class BookingSheet {
     required List<TourSchedule> schedules,
   }) {
     final rootContext = context;
-    String? selectedScheduleId =
-        schedules.isNotEmpty ? schedules.first.id : null;
+    TourSchedule? availableSchedule;
+    if (schedules.isNotEmpty) {
+      try {
+        availableSchedule = schedules.firstWhere((s) => s.seatsAvailable > 0);
+      } catch (_) {
+        availableSchedule = schedules.first;
+      }
+    }
+
+    String? selectedScheduleId = availableSchedule?.id;
     int adultCount = 1;
     int childCount = 0;
     bool isLoading = false;
@@ -21,14 +29,15 @@ class BookingSheet {
 
     TourSchedule? currentSchedule() {
       if (selectedScheduleId == null) return null;
+      if (schedules.isEmpty) return null;
       try {
-        return schedules.firstWhere(
-          (schedule) => schedule.id == selectedScheduleId,
-        );
+        return schedules.firstWhere((s) => s.id == selectedScheduleId);
       } catch (_) {
-        return schedules.isNotEmpty ? schedules.first : null;
+        return schedules.first;
       }
     }
+
+    int totalGuests() => adultCount + childCount;
 
     double calcTotal() {
       final childPrice = package.childPrice ?? 0;
@@ -38,7 +47,7 @@ class BookingSheet {
     final dateFormat = DateFormat('dd/MM/yyyy');
     final currency = NumberFormat.currency(
       locale: 'vi_VN',
-      symbol: '₫',
+      symbol: 'đ',
       decimalDigits: 0,
     );
 
@@ -66,6 +75,35 @@ class BookingSheet {
               }
 
               final schedule = currentSchedule();
+              final cap = schedule?.seatsAvailable ?? 0;
+              final guests = totalGuests();
+
+              if (schedule != null && cap <= 0) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Lịch này đã hết chỗ, vui lòng chọn ngày khác.',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              if (schedule != null && cap > 0 && guests > cap) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Chỉ còn $cap chỗ, vui lòng chọn ngày khác.'),
+                  ),
+                );
+                return;
+              }
+
+              if (schedule == null && schedules.isNotEmpty) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Vui lòng chọn lịch còn chỗ.')),
+                );
+                return;
+              }
 
               if (checkout) {
                 sheetNavigator.pop();
@@ -146,11 +184,13 @@ class BookingSheet {
                                   Padding(
                                     padding: const EdgeInsets.only(top: 6),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           package.description,
-                                          maxLines: showFullDescription ? null : 3,
+                                          maxLines:
+                                              showFullDescription ? null : 3,
                                           overflow:
                                               showFullDescription
                                                   ? TextOverflow.visible
@@ -164,13 +204,20 @@ class BookingSheet {
                                             style: TextButton.styleFrom(
                                               padding: EdgeInsets.zero,
                                               minimumSize: const Size(0, 0),
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
                                             ),
-                                            onPressed: () => setState(
-                                              () => showFullDescription = !showFullDescription,
-                                            ),
+                                            onPressed:
+                                                () => setState(
+                                                  () =>
+                                                      showFullDescription =
+                                                          !showFullDescription,
+                                                ),
                                             child: Text(
-                                              showFullDescription ? 'Thu gọn' : 'Xem thêm',
+                                              showFullDescription
+                                                  ? 'Thu gọn'
+                                                  : 'Xem thêm',
                                               style: const TextStyle(
                                                 color: Color(0xFFFF5B00),
                                                 fontWeight: FontWeight.w600,
@@ -210,23 +257,48 @@ class BookingSheet {
                               children:
                                   schedules.map((schedule) {
                                     final text = formatSchedule(schedule);
+                                    final cap = schedule.seatsAvailable;
+                                    final isSoldOut = cap <= 0;
                                     final isSelected =
                                         schedule.id == selectedScheduleId;
                                     return ChoiceChip(
-                                      label: Text(text),
+                                      label: Text(
+                                        isSoldOut
+                                            ? '$text (Hết chỗ)'
+                                            : '$text (Còn $cap chỗ)',
+                                      ),
                                       selected: isSelected,
-                                      onSelected: (_) {
-                                        setState(
-                                          () =>
-                                              selectedScheduleId = schedule.id,
-                                        );
-                                      },
+                                      onSelected:
+                                          isSoldOut
+                                              ? null
+                                              : (_) {
+                                                if (cap > 0 &&
+                                                    totalGuests() > cap) {
+                                                  ScaffoldMessenger.of(
+                                                    rootContext,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        'Chỉ còn $cap chỗ, vui lòng chọn ngày khác.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
+                                                setState(
+                                                  () =>
+                                                      selectedScheduleId =
+                                                          schedule.id,
+                                                );
+                                              },
                                       selectedColor: const Color(0xFFFFF2E8),
                                       labelStyle: TextStyle(
                                         color:
                                             isSelected
                                                 ? const Color(0xFFFF5B00)
                                                 : Colors.black87,
+                                        fontWeight:
+                                            isSoldOut ? FontWeight.w600 : null,
                                       ),
                                     );
                                   }).toList(),
@@ -242,10 +314,22 @@ class BookingSheet {
                             description: 'Từ 12 tuổi',
                             value: adultCount,
                             minValue: 1,
-                            onChanged:
-                                (value) => setState(
-                                  () => adultCount = value.clamp(1, 20),
-                                ),
+                            onChanged: (value) {
+                              final newAdult = value.clamp(1, 20);
+                              final cap =
+                                  currentSchedule()?.seatsAvailable ?? 0;
+                              if (cap > 0 && newAdult + childCount > cap) {
+                                ScaffoldMessenger.of(rootContext).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Chỉ còn $cap chỗ, vui lòng chọn ngày khác.',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              setState(() => adultCount = newAdult);
+                            },
                           ),
                           const SizedBox(height: 12),
                           PassengerCounter(
@@ -253,10 +337,22 @@ class BookingSheet {
                             description: 'Dưới 12 tuổi',
                             value: childCount,
                             minValue: 0,
-                            onChanged:
-                                (value) => setState(
-                                  () => childCount = value.clamp(0, 20),
-                                ),
+                            onChanged: (value) {
+                              final newChild = value.clamp(0, 20);
+                              final cap =
+                                  currentSchedule()?.seatsAvailable ?? 0;
+                              if (cap > 0 && adultCount + newChild > cap) {
+                                ScaffoldMessenger.of(rootContext).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Chỉ còn $cap chỗ, vui lòng chọn ngày khác.',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              setState(() => childCount = newChild);
+                            },
                           ),
                         ],
                       ),
@@ -269,7 +365,7 @@ class BookingSheet {
                           Row(
                             children: [
                               const Text(
-                                'Tổng tạm tính',
+                                'Tạm tính',
                                 style: TextStyle(color: Colors.black54),
                               ),
                               const Spacer(),

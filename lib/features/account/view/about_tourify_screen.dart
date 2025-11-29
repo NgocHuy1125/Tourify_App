@@ -9,7 +9,7 @@ class AboutTourifyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Về Tourify')),
+      appBar: AppBar(title: const Text('Về VietTravel')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -36,7 +36,7 @@ class AboutTourifyScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
                   Text(
-                    'Tourify',
+                    'VietTravel',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -81,7 +81,7 @@ class AboutTourifyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Theo dõi Tourify để cập nhật những ưu đãi mới nhất và câu chuyện hành trình truyền cảm hứng mỗi ngày.',
+              'Theo dõi VietTravel để cập nhật những ưu đãi mới nhất và câu chuyện hành trình truyền cảm hứng mỗi ngày.',
               style: TextStyle(color: Colors.grey.shade700),
             ),
           ],

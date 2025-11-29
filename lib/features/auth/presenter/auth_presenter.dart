@@ -163,33 +163,41 @@ class AuthPresenter with ChangeNotifier {
     _actionState = ActionState.loading;
     notifyListeners();
     try {
-      final serverClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+      final webClientId =
+          dotenv.env['GOOGLE_CLIENT_ID_WEB'] ??
+          dotenv.env['GOOGLE_WEB_CLIENT_ID'] ??
+          dotenv.env['GOOGLE_CLIENT_ID'] ??
+          '';
+      final androidClientId = dotenv.env['GOOGLE_CLIENT_ID_ANDROID'] ?? '';
+      if (webClientId.isEmpty && androidClientId.isEmpty) {
+        throw Exception(
+          'Thiếu GOOGLE_CLIENT_ID_WEB/GOOGLE_CLIENT_ID_ANDROID trong .env',
+        );
+      }
+
+      // Dùng web client ID làm serverClientId để nhận idToken; nếu thiếu thì chỉ dùng Android ID.
       final googleSignIn = GoogleSignIn(
-        serverClientId: serverClientId,
+        serverClientId: webClientId.isNotEmpty ? webClientId : null,
+        clientId: androidClientId.isNotEmpty ? androidClientId : null,
         scopes: const ['email', 'profile'],
-        forceCodeForRefreshToken: true,
       );
+
       await googleSignIn.signOut();
-
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
       if (googleUser == null) {
         throw Exception('Đăng nhập Google đã bị hủy.');
       }
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
-      final String? authCode =
-          googleUser.serverAuthCode ?? googleAuth.serverAuthCode;
-      if (authCode == null) {
-        throw Exception('Không lấy được serverAuthCode từ Google.');
+      final String? idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception(
+          'Không lấy được idToken từ Google (kiểm tra serverClientId).',
+        );
       }
 
-      await _repository.handleSocialLoginCallback(
-        provider: 'google',
-        code: authCode,
-      );
-
+      await _repository.handleGoogleMobile(idToken: idToken);
       _authNotifier.updateLoginState(true);
       _actionState = ActionState.success;
     } catch (e) {

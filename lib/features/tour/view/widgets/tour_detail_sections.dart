@@ -103,6 +103,7 @@ class _ScheduleChip extends StatelessWidget {
         '${dateFormat.format(schedule.startDate)} - ${dateFormat.format(schedule.endDate)}';
     final seats = schedule.seatsAvailable;
     final total = schedule.seatsTotal;
+    final isSoldOut = seats <= 0;
     final seatsText =
         seats >= total
             ? 'Còn nhiều chỗ'
@@ -113,17 +114,31 @@ class _ScheduleChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: isSoldOut ? Colors.grey.shade200 : Colors.orange.shade50,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.shade100),
+        border: Border.all(
+          color: isSoldOut ? Colors.grey.shade300 : Colors.orange.shade100,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: const TextStyle(color: Color(0xFFFF5B00))),
+          Text(
+            text,
+            style: TextStyle(
+              color: isSoldOut ? Colors.black54 : const Color(0xFFFF5B00),
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(seatsText, style: const TextStyle(fontSize: 12)),
+          Text(
+            seatsText,
+            style: TextStyle(
+              fontSize: 12,
+              color: isSoldOut ? Colors.black45 : Colors.black87,
+              fontWeight: isSoldOut ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
         ],
       ),
     );
@@ -150,6 +165,7 @@ class _PackageCard extends StatelessWidget {
     final scheduleCount = schedules.length;
     final discountFactor = detail.autoPromotionFactor;
     final hasDiscount = discountFactor < 0.999;
+    final hasAvailableSchedule = schedules.any((s) => s.seatsAvailable > 0);
 
     double applyDiscount(double price) {
       if (!hasDiscount) return price;
@@ -247,19 +263,22 @@ class _PackageCard extends StatelessWidget {
           Row(
             children: [
               ElevatedButton(
-                onPressed: () async {
-                  final allowed = await ensureLoggedIn(
-                    context,
-                    message: 'Vui lòng đăng nhập để đặt tour.',
-                  );
-                  if (!allowed) return;
-                  BookingSheet.show(
-                    context,
-                    detail: detail,
-                    package: package,
-                    schedules: schedules,
-                  );
-                },
+                onPressed:
+                    hasAvailableSchedule
+                        ? () async {
+                          final allowed = await ensureLoggedIn(
+                            context,
+                            message: 'Vui lòng đăng nhập để đặt tour.',
+                          );
+                          if (!allowed) return;
+                          BookingSheet.show(
+                            context,
+                            detail: detail,
+                            package: package,
+                            schedules: schedules,
+                          );
+                        }
+                        : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF5B00),
                   foregroundColor: Colors.white,
@@ -271,7 +290,7 @@ class _PackageCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: const Text('Chọn gói này'),
+                child: Text(hasAvailableSchedule ? 'Chọn gói này' : 'Hết chỗ'),
               ),
               const SizedBox(width: 12),
               if (detail.policy.isNotEmpty)

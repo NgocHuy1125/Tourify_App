@@ -168,7 +168,30 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> sendForgotPasswordOtp({required String identifier}) async {
+    @override
+  Future<AuthResponse> handleGoogleMobile({required String idToken}) async {
+    final response = await _httpClient.post(
+      '/api/auth/social/google/mobile',
+      body: {'id_token': idToken},
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = json.decode(response.body);
+      final token = (data['access_token'] ?? '').toString();
+      if (token.isEmpty) {
+        throw Exception('Phản hồi không chứa access_token.');
+      }
+      await _storageService.saveToken(token);
+      final user =
+          (data['user'] is Map)
+              ? (data['user'] as Map).cast<String, dynamic>()
+              : <String, dynamic>{};
+      return AuthResponse(accessToken: token, user: user);
+    }
+    _handleErrorResponse(response);
+    throw Exception('Đăng nhập Google (mobile) thất bại.');
+  }
+Future<void> sendForgotPasswordOtp({required String identifier}) async {
     final channel = identifier.contains('@') ? 'email' : 'phone';
     final response = await _httpClient.post(
       '/api/auth/send-otp',

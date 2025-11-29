@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:tourify_app/features/home/model/home_models.dart';
@@ -40,19 +40,30 @@ class _AllToursScreenState extends State<AllToursScreen> {
     final destination = widget.destination?.trim();
     if (destination != null && destination.isNotEmpty) {
       return _repository.searchTours(
-        TourSearchFilters(
-          destinations: [destination],
-          perPage: 100,
-        ),
+        TourSearchFilters(destinations: [destination], perPage: 100),
       );
     }
     final category = widget.category;
     if (category != null) {
-      return _repository.fetchToursByCategory(
-        category.id,
-        slug: category.slug,
-        limit: 100,
-      );
+      final tagKeyword =
+          (category.slug?.trim().isNotEmpty == true
+                  ? category.slug!
+                  : category.name)
+              .trim()
+              .toLowerCase();
+      return _repository.fetchAllTours(limit: 200).then((tours) {
+        if (tagKeyword.isEmpty) return tours;
+        final filtered =
+            tours.where((tour) {
+              final tags = tour.tags.map((t) => t.toLowerCase()).toList();
+              final inTags = tags.any((t) => t.contains(tagKeyword));
+              final inText =
+                  tour.title.toLowerCase().contains(tagKeyword) ||
+                  tour.destination.toLowerCase().contains(tagKeyword);
+              return inTags || inText;
+            }).toList();
+        return filtered.isNotEmpty ? filtered : tours;
+      });
     }
     return _repository.fetchAllTours(limit: 100);
   }
@@ -60,9 +71,7 @@ class _AllToursScreenState extends State<AllToursScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_appBarTitle()),
-      ),
+      appBar: AppBar(title: Text(_appBarTitle())),
       body: FutureBuilder<List<TourSummary>>(
         future: _future,
         builder: (context, snapshot) {
@@ -72,8 +81,7 @@ class _AllToursScreenState extends State<AllToursScreen> {
 
           if (snapshot.hasError) {
             return _ErrorMessage(
-              message:
-                  'Kh�ng th? t?i danh s�ch tour.\n${snapshot.error ?? ''}',
+              message: 'Không thể tải danh sách tour.\n${snapshot.error ?? ''}',
               onRetry: _reload,
             );
           }
@@ -81,7 +89,7 @@ class _AllToursScreenState extends State<AllToursScreen> {
           final tours = snapshot.data ?? [];
           if (tours.isEmpty) {
             return const _EmptyMessage(
-              message: 'Chua c� tour n�o du?c hi?n th?.',
+              message: 'Chưa có tour nào được hiển thị.',
             );
           }
 
@@ -94,13 +102,12 @@ class _AllToursScreenState extends State<AllToursScreen> {
                 16,
                 16 + MediaQuery.of(context).padding.bottom,
               ),
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    mainAxisExtent: 360,
-                  ),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                mainAxisExtent: 360,
+              ),
               itemCount: tours.length,
               physics: const AlwaysScrollableScrollPhysics(),
               itemBuilder: (context, index) {
@@ -133,8 +140,9 @@ class _AllToursScreenState extends State<AllToursScreen> {
     }
     final category = widget.category;
     if (category != null && category.name.isNotEmpty) {
-      return category.name;
+      return 'Tour theo: ${category.name}';
     }
+
     return 'Tất cả tour';
   }
 }
@@ -161,7 +169,8 @@ class _ErrorMessage extends StatelessWidget {
           FilledButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
-            label: const Text('Th? l?i'),
+
+            label: const Text('Thử lại'),
           ),
         ],
       ),
@@ -179,12 +188,8 @@ class _EmptyMessage extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-        ),
+        child: Text(message, textAlign: TextAlign.center),
       ),
     );
   }
 }
-
